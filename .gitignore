@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.tmp*
+.DS_Store
+# 数据默认在 ~/.compound-memory/,不在仓库里。万一有人把它拷进来,别提交。
+/share/
+/memory/
+/observations.jsonl

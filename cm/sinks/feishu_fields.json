@@ -1,0 +1,14 @@
+[
+ {"name":"内容","type":"text"},
+ {"name":"日期","type":"datetime"},
+ {"name":"性质","type":"select","multiple":false,"options":[{"name":"要求"},{"name":"想法"},{"name":"推断"},{"name":"事实"}]},
+ {"name":"类型","type":"select","multiple":false,"options":[{"name":"事件·决定"},{"name":"关于本人"},{"name":"线头·承诺"},{"name":"模式·矛盾"},{"name":"纠正·重复解释"}]},
+ {"name":"时效","type":"select","multiple":false,"options":[{"name":"长期"},{"name":"短期"}]},
+ {"name":"适用范围","type":"text"},
+ {"name":"有效期","type":"text"},
+ {"name":"出处","type":"text"},
+ {"name":"状态","type":"select","multiple":false,"options":[{"name":"有效"},{"name":"已修正"},{"name":"已推翻"},{"name":"已收口"},{"name":"不确定"}]},
+ {"name":"记忆ID","type":"text"},
+ {"name":"修订自","type":"text"},
+ {"name":"批次","type":"text"}
+]

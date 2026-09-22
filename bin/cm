@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# compound-memory 的入口。用仓库自带的路径跑,不依赖 pip install。
+set -euo pipefail
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+REPO="$(dirname "$HERE")"
+PY="${CM_PYTHON:-}"
+if [ -z "$PY" ]; then
+  for c in python3.14 python3.13 python3.12 python3.11 python3.10 python3; do
+    if command -v "$c" >/dev/null 2>&1; then PY="$c"; break; fi
+  done
+fi
+[ -n "$PY" ] || { echo "compound-memory: 找不到 python3" >&2; exit 1; }
+exec "$PY" -c 'import sys; sys.path.insert(0, sys.argv[1]); from cm.cli import main; sys.exit(main(sys.argv[2:]))' "$REPO" "$@"
