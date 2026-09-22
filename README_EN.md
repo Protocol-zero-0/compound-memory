@@ -178,7 +178,7 @@ Lives in `~/.compound-memory/config.yaml` (copied from `config.example.yaml` at 
 | `effort` | `high` | reasoning effort (`claude-cli` backend only) |
 | `llm.backend` | `claude-cli` | `claude-cli` (the CLI you're logged into) or `openai` |
 | `llm.claude_flags` | see example | the slim entry point; break these and overhead multiplies |
-| `sink` | `local` | shared layer: `local` / `github` / `feishu` |
+| `sink` | `local` | shared layer: `local` / `github` / `feishu` (run `cm sink-init` once for the latter two) |
 | `nightly_limit` | `20` | max sessions processed per run |
 | `window_days` | `7` | only sessions with new activity in this window |
 | `max_candidates` | `8` | max memories extracted per session |
@@ -220,6 +220,8 @@ out; dsh has a second layer (it tags the injection `source.kind: plugin`).
 **Can several machines share one memory?**
 Yes. Point `sink: github` at a **private** repo and clone it everywhere. Run the distillation
 on one machine; the others read only. Transcripts are never moved between machines.
+If you also want humans to browse it (on a phone, editing statuses by hand), use
+`sink: feishu` — `cm sink-init` creates the table and writes the tokens back for you.
 
 **Can I use it without Claude?**
 Yes — `llm.backend: openai` plus `base_url` and `api_key_env`. Just note that the defaults

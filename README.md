@@ -163,7 +163,7 @@ dsh 的会话格式公开文档没写,是实测摸出来的(压缩格式、两�
 | `effort` | `high` | 思考深度(仅 `claude-cli` 后端) |
 | `llm.backend` | `claude-cli` | `claude-cli`(用本机已登录的 claude)或 `openai`(任何兼容接口) |
 | `llm.claude_flags` | 见示例 | 精简出口的 flag;改坏了背景开销会翻几倍 |
-| `sink` | `local` | 共享层:`local` / `github` / `feishu` |
+| `sink` | `local` | 共享层:`local` / `github` / `feishu`(后两种配好后跑一次 `cm sink-init`) |
 | `nightly_limit` | `20` | 每次运行最多处理几个 session |
 | `window_days` | `7` | 只看最近多少天有新对话的 session |
 | `max_candidates` | `8` | 每个 session 最多提炼几条 |
@@ -203,6 +203,8 @@ dsh 那边还多一层(它自己标了 `source.kind: plugin`)。
 **能多台机器共用吗?**
 能。`sink: github` 指向一个**私有**仓库,每台机器都 clone 它;
 提炼可以只在一台机器上跑,其余机器只读。原文不跨机搬运。
+想让人也能随手翻(手机上看、手工改状态)就用 `sink: feishu`,
+`cm sink-init` 一条命令把表建好并写回配置。
 
 **能不用 Claude 吗?**
 能。`llm.backend: openai` + `base_url` + `api_key_env`,任何 OpenAI 兼容接口。

@@ -126,15 +126,18 @@ def cmd_sessions(args):
 
 
 def cmd_sink_init(args):
+    from . import sinks
     cfg = config.load()
-    name = (cfg.get('sink') or 'local').lower()
-    if name != 'feishu':
-        print(f'sink = {name},不用初始化。')
+    try:
+        print(f"  {cfg.get('sink')}  {sinks.get(cfg).init()}")
         return 0
-    p = os.path.join(config.REPO, 'cm', 'sinks', 'feishu_fields.json')
-    print('在飞书多维表格里新建一张表,字段如下(docs/sinks.md 有字段表):\n')
-    print(json.dumps(json.load(open(p, encoding='utf-8')), ensure_ascii=False, indent=1))
-    return 0
+    except Exception as ex:
+        print(f'  !! {type(ex).__name__}: {ex}')
+        if (cfg.get('sink') or '').lower() == 'feishu':
+            p = os.path.join(config.REPO, 'cm', 'sinks', 'feishu_fields.json')
+            print('\n自己建表的话,字段是这些(也见 docs/sinks.md):\n')
+            print(json.dumps(json.load(open(p, encoding='utf-8')), ensure_ascii=False, indent=1))
+        return 1
 
 
 COMMANDS = {

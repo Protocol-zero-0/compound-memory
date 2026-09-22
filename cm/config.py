@@ -207,3 +207,77 @@ def host_cfg(cfg, name):
 if __name__ == '__main__':
     import json
     print(json.dumps(load(), ensure_ascii=False, indent=1))
+
+
+# ---------- 就地改配置(保留注释与顺序) ----------
+def update_file(updates, path=None):
+    """把 {'sinks.feishu.base_token': 'xxx'} 这样的改动写回 config.yaml,注释和顺序都留着。
+
+    不用"读成对象再 dump 回去":那样会把整份配置的注释洗掉,而这份配置的注释
+    就是它的文档。所以按缩进定位到那一行,只换值;找不到就在父块末尾补一行。
+    """
+    p = path or CONFIG_PATH
+    if not os.path.exists(p):
+        return False
+    lines = open(p, encoding='utf-8').read().split('\n')
+    for dotted, value in updates.items():
+        keys = dotted.split('.')
+        lines = _set_line(lines, keys, value)
+    with open(p, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
+    return True
+
+
+def _fmt(value):
+    if isinstance(value, bool):
+        return 'true' if value else 'false'
+    if isinstance(value, (int, float)):
+        return str(value)
+    return f"'{value}'"
+
+
+def _set_line(lines, keys, value):
+    depth, start, end = 0, 0, len(lines)
+    indent_of_parent = -1
+    for ki, key in enumerate(keys):
+        found = None
+        for i in range(start, end):
+            raw = lines[i]
+            body = _strip_comment(raw).strip()
+            if not body or body.startswith('-'):
+                continue
+            ind = len(raw) - len(raw.lstrip(' '))
+            if ki > 0 and ind <= indent_of_parent:
+                break                                  # 出了父块,别越界匹配到同名键
+            if body.split(':')[0].strip() == key and (ind == indent_of_parent + 2 or ki == 0 and ind == 0):
+                found = i
+                break
+        if found is None:
+            if ki == len(keys) - 1:                    # 叶子缺失:在父块末尾补一行
+                insert_at = end
+                for i in range(start, end):
+                    ind = len(lines[i]) - len(lines[i].lstrip(' '))
+                    if lines[i].strip() and ind <= indent_of_parent:
+                        insert_at = i
+                        break
+                while insert_at > start and not _strip_comment(lines[insert_at - 1]).strip():
+                    insert_at -= 1                     # 别插到块尾的空行/分节注释后面
+                lines.insert(insert_at, ' ' * (indent_of_parent + 2) + f'{key}: {_fmt(value)}')
+            return lines
+        if ki == len(keys) - 1:
+            ind = len(lines[found]) - len(lines[found].lstrip(' '))
+            comment = ''
+            raw = lines[found]
+            stripped = _strip_comment(raw)
+            if len(stripped) < len(raw.rstrip()):
+                comment = '  ' + raw[len(stripped):].strip()
+            lines[found] = ' ' * ind + f'{key}: {_fmt(value)}' + comment
+            return lines
+        indent_of_parent = len(lines[found]) - len(lines[found].lstrip(' '))
+        start = found + 1
+        for i in range(start, end):                    # 父块的范围到下一个同级键为止
+            if lines[i].strip() and (len(lines[i]) - len(lines[i].lstrip(' '))) <= indent_of_parent:
+                end = i
+                break
+        depth += 1
+    return lines

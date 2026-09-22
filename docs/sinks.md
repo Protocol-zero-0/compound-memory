@@ -56,24 +56,33 @@ sinks:
 
 ## feishu(飞书多维表格,人也要翻的时候)
 
+好处是记忆一条一行,可以在手机上翻、可以手工改状态、可以按"性质/时效"筛选,
+快照还会写成一篇飞书文档。代价是多一个账号依赖。
+
+前置:装好 [lark-cli](https://github.com/larksuite) 并 `lark-cli auth login`
+(需要 `base:app:create` / `base:table:create` / `base:record:*` / `docs:*` 这几类权限)。
+
 ```yaml
 sink: feishu
 sinks:
   feishu:
     cli: lark-cli
-    base_token: 'xxxxxxxxxxxxxxxxxxxxxxxx'
-    table_id: 'tblxxxxxxxxxxxx'
-    snapshot_doc: ''      # 留空,第一次运行自动建一篇,然后把 token 填回这里
+    base_token: ''        # 留空,下面这条命令会填
+    table_id: ''
+    snapshot_doc: ''      # 留空,第一次发快照时自动建一篇并填回来
 ```
 
-前置:装好 [lark-cli](https://github.com/larksuite) 并 `lark-cli auth login`。
+然后一条命令建表:
 
-好处是记忆一条一行,可以在手机上翻、可以手工改状态、可以按"性质/时效"筛选。
-代价是多一个账号依赖。
+```bash
+cm sink-init
+#  feishu  已建好并写回配置:https://…/base/XXXX(table tblYYYY)
+```
 
-### 建表
+它会新建一个 Base、按下面的 schema 建好「记忆」表,并把 token 写回 `config.yaml`
+(注释和顺序都保留)。已经填了 `base_token` / `table_id` 就什么都不做 —— 想重建先清空那两项。
 
-`cm sink-init` 会把字段定义打印出来。手工建也行,字段必须叫这些名字:
+### 表结构(想自己建的话)
 
 | 字段 | 类型 | 选项 |
 |---|---|---|
@@ -90,9 +99,17 @@ sinks:
 | 修订自 | 文本 | |
 | 批次 | 文本 | |
 
-字段定义的机器可读版在 `cm/sinks/feishu_fields.json`。
+机器可读版在 `cm/sinks/feishu_fields.json`。
 
----
+### 两个实现上的讲究
+
+**批量写,不是一条一条写。** 几十条记忆逐条 upsert 要一分多钟(每条一次进程 + 一次 API),
+改成 `record-batch-create` / `record-batch-update` 之后是 3 秒。每批上限 200 条。
+
+**发之前先跟表对账。** 本地会记"这条已经发过、远端 id 是多少"。这份回执要是丢了
+(换机器、重装、手工删了 `observations.jsonl`),再发一次就会把整张表复制一遍。
+所以只要发现有记忆缺回执,就先把表里的 `记忆ID → record_id` 拉回来补上,
+再决定哪些是新建、哪些是更新 —— 多花一两次请求,换掉一整类"记忆凭空翻倍"。
 
 ## 自己写一个
 
