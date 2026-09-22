@@ -96,13 +96,29 @@ def ask(prompt, timeout=420, model=None, effort=None):
     raise RuntimeError(f'不认识的 llm.backend: {backend}')
 
 
-def ask_json(prompt, timeout=420):
-    """要求模型只输出 JSON;容忍代码围栏和前后废话。"""
-    out = ask(prompt, timeout)
-    s, e = out.find('{'), out.rfind('}')
-    if s < 0 or e <= s:
-        raise ValueError('模型输出里没有 JSON:' + out[:200])
-    return json.loads(out[s:e + 1])
+REPAIR = ('\n\n上一次你的输出不是合法 JSON(解析报错:{err})。这次**只输出一个 JSON 对象**:'
+          '不要代码围栏、不要任何解释、不要调用工具、不要写文件。'
+          '字符串里的引号和换行要转义。')
+
+
+def ask_json(prompt, timeout=420, retries=1):
+    """要求模型只输出 JSON;容忍代码围栏和前后废话,解析不了就带着报错重试一次。
+
+    为什么要重试:实跑里遇到过模型把一条记忆的引号没转义,整个 session 的提炼就丢了。
+    水位线没推进所以第二天还会重来,但同样的提示词多半还是同样的结果 —— 得把错误告诉它。
+    """
+    last = None
+    for i in range(retries + 1):
+        out = ask(prompt if i == 0 else prompt + REPAIR.format(err=last), timeout)
+        s, e = out.find('{'), out.rfind('}')
+        if s < 0 or e <= s:
+            last = '输出里根本没有 JSON 对象'
+            continue
+        try:
+            return json.loads(out[s:e + 1])
+        except json.JSONDecodeError as ex:
+            last = str(ex)
+    raise ValueError(f'模型连续 {retries + 1} 次没给出合法 JSON:{last}')
 
 
 # ---------- 文件工具 ----------

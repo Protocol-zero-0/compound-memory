@@ -47,7 +47,9 @@ nightly_limit: 20          # 每次运行最多处理多少个 session(防止一
 window_days: 7             # 只看最近多少天有新对话的 session;首次补历史用 `cm distill --days 120`
 max_candidates: 8          # 每个 session 最多提炼几条记忆
 text_budget: 14000         # 每个 session 喂给模型的发言字数上限(头 40% + 尾 60%)
-snapshot_max_chars: 3200   # 快照正文硬上限;超了自动压缩
+snapshot_max_chars: 3200   # 快照正文上限;超了自动压缩(最多压 3 轮,压不动就超着发,不会没有快照)
+snapshot_input_budget: 25600   # 喂给快照的记忆总字数上限。「要求」和「线头」一条不删,
+                               # 其余按从新到旧填;被挤掉的靠 `cm recall` 找得到
 cron: '30 4 * * *'         # 每晚提炼的时间(本机时区)
 
 # ---- 底线附录(可选)----
