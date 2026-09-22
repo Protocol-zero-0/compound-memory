@@ -193,6 +193,11 @@ dsh 的会话格式公开文档没写,是实测摸出来的(压缩格式、两�
 **怎么补历史?**
 `cm distill --days 365 --limit 0`。按 `nightly_limit` 分几晚跑完也行,水位线记得住。
 
+**已经有一堆记忆了,能搬过来吗?**
+能。`python3 tools/import-legacy-jsonl.py <旧文件.jsonl>` —— 一行一条、字段叫
+内容/日期/性质/类型/时效/状态 的都吃得下。只写本地库,重复跑安全,导完
+`cm distill --snapshot-only` 发共享层。
+
 **一晚上要花多少?**
 一个 session 一次调用,加一次快照生成。默认上限 20 个 session = 21 次调用。
 `~/.compound-memory/usage.log` 一行一次,可以自己核。

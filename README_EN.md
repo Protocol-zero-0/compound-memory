@@ -209,6 +209,11 @@ Run `cm doctor`. Usually there just wasn't a long enough conversation in the las
 **How do I backfill history?**
 `cm distill --days 365 --limit 0`, or a few nights at `nightly_limit` — the watermark remembers.
 
+**I already have a pile of memories elsewhere. Can I bring them in?**
+Yes. `python3 tools/import-legacy-jsonl.py <old.jsonl>` takes any one-per-line JSONL whose
+fields are named content/date/nature/kind/horizon/status (or their Chinese equivalents).
+It only writes the local store and is safe to re-run; then `cm distill --snapshot-only`.
+
 **What does a night cost?**
 One call per session plus one snapshot build. At the default cap that's 21 calls.
 `~/.compound-memory/usage.log` has one line per call, so you can check for yourself.
