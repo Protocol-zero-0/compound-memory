@@ -27,8 +27,12 @@ def cmd_recall(args):
     ap = argparse.ArgumentParser(prog='cm recall')
     ap.add_argument('query', nargs='+')
     ap.add_argument('--k', type=int, default=8)
+    ap.add_argument('--fast', action='store_true', help='纯本地字面匹配(默认就是)')
+    ap.add_argument('--expand', action='store_true', help='先让小模型扩几个说法再搜(默认关,见 docs/recall.md)')
+    ap.add_argument('--all', action='store_true', help='连已推翻的记忆一起找')
     a = ap.parse_args(args)
-    return recall.print_recall(config.load(), ' '.join(a.query), a.k)
+    fast = None if not (a.fast or a.expand) else (not a.expand)
+    return recall.print_recall(config.load(), ' '.join(a.query), a.k, fast, a.all)
 
 
 def cmd_doctor(args):
@@ -125,6 +129,11 @@ def cmd_sessions(args):
     return 0
 
 
+def cmd_eval(args):
+    from .evaluate import main as eval_main
+    return eval_main(args)
+
+
 def cmd_sink_init(args):
     from . import sinks
     cfg = config.load()
@@ -143,16 +152,17 @@ def cmd_sink_init(args):
 COMMANDS = {
     'distill': cmd_distill, 'snapshot': cmd_snapshot, 'recall': cmd_recall,
     'doctor': cmd_doctor, 'install': cmd_install, 'uninstall': cmd_uninstall,
-    'sessions': cmd_sessions, 'sink-init': cmd_sink_init,
+    'sessions': cmd_sessions, 'sink-init': cmd_sink_init, 'eval': cmd_eval,
 }
 
 USAGE = """compound-memory —— 把每天的对话自动沉淀成"关于你"的长期记忆
 
   cm distill [--days N] [--limit N] [--dry]   提炼(每晚 cron 自动跑,也可手动)
   cm snapshot [--refresh]                     打印当前快照(开局注入用的就是它)
-  cm recall "话题" [--k N]                    按话题检索记忆
+  cm recall "话题" [--k N] [--expand]         按话题检索记忆
   cm doctor                                   看现状:配置、记忆条数、各 harness 接没接上
   cm sessions [N]                             列最近的 session 与处理状态
+  cm eval [--n N] [--set 题目文件]            量检索:出题→看标准答案排第几
   cm install / cm uninstall                   接上/摘掉开局注入与 cron
   cm sink-init                                共享层初始化提示
 

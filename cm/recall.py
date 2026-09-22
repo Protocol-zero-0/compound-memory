@@ -4,12 +4,13 @@
 快照故意很短。真正的细节靠 recall 去翻 —— 加长快照会让每个 session 的开头越来越贵,
 而且大部分内容当次任务根本用不上。
 """
-import os, time
+import json, os, time
 
-from . import config, llm, store, sinks, lexicon as L
+from . import config, llm, prompts, store, sinks, lexicon as L
 from .sources import MARKER
 
 CACHE = os.path.join(config.HOME, 'cache', 'snapshot.md')
+QCACHE = os.path.join(config.HOME, 'cache', 'queries.json')
 LOCAL = os.path.join(config.HOME, 'memory', 'snapshot.md')
 
 
@@ -56,20 +57,82 @@ def print_snapshot(cfg, refresh=False):
     return 0
 
 
-def print_recall(cfg, query, k=8):
+# ---------- 查询扩展 ----------
+def _qcache():
+    try:
+        return json.load(open(QCACHE, encoding='utf-8'))
+    except Exception:
+        return {}
+
+
+def expand(cfg, query):
+    """把问题扩成几个"记忆里可能真出现的说法"。一次便宜调用,结果永久缓存。
+
+    **默认关着。** `cm eval` 的 24 道题上:@8 纹丝不动(88% → 88%),@1/@3 看着涨但
+    逐题是 5 好 4 差(=噪音),代价是每次多 12 秒。对真正的消费者 —— session 里那个
+    一次把 8 条都读掉的 AI —— 它等于没做事。数字和消融见 docs/recall.md。
+    原因是中文按字符二元组匹配本来就抗改写,近义词共享大量汉字。
+    留着开关是因为**英文语料未必如此** —— 英文同义词不共享字母,词表错配可能是真问题。
+    要开就先用 `cm eval --arms literal,expand` 在**你自己的记忆库**上量一遍。
+    """
+    rc = cfg.get('recall') or {}
+    cache = _qcache()
+    key = store.norm(query)
+    if key in cache:
+        return cache[key]
+    n = int(rc.get('terms') or 6)
+    try:
+        out = llm.ask(prompts.build('recall', cfg.get('language') or 'zh',
+                                    user_name=cfg.get('user_name'), query=query, n=n),
+                      timeout=int(rc.get('timeout') or 45),
+                      model=rc.get('model') or None, effort=rc.get('effort') or 'low')
+    except Exception:
+        return []                                   # 扩展是锦上添花,失败就退回字面匹配
+    terms, seen = [], {key}
+    for line in (out or '').splitlines():
+        t = line.strip().lstrip('-*0123456789.、) ').strip(' "\'「」')
+        if not t or len(t) > 24 or store.norm(t) in seen:
+            continue
+        seen.add(store.norm(t))
+        terms.append(t)
+        if len(terms) >= n:
+            break
+    cache[key] = terms
+    if len(cache) > 500:                            # 缓存不用无限长,丢最早的一半
+        cache = dict(list(cache.items())[-250:])
+    os.makedirs(os.path.dirname(QCACHE), exist_ok=True)
+    llm.atomic_write(QCACHE, json.dumps(cache, ensure_ascii=False, indent=1))
+    return terms
+
+
+def find(cfg, query, k=8, fast=None, include_stale=False):
+    """返回 (命中列表, 用过的说法, 记忆来源)。"""
     rows = store.load()
-    src = '本机全量' if (cfg.get('language') or 'zh') != 'en' else 'local store'
+    src = 'local'
     if not rows:
         try:
             rows = sinks.get(cfg).fetch_memories()
-            src = '共享层' if (cfg.get('language') or 'zh') != 'en' else 'shared layer'
+            src = 'shared'
         except Exception:
             rows = []
+    # fast=None 听配置;命令行的 --expand / --fast 覆盖配置
+    skip = (not (cfg.get('recall') or {}).get('expand', False)) if fast is None else fast
+    terms = [] if skip else expand(cfg, query)
+    weight = float((cfg.get('recall') or {}).get('expanded_weight') or 0.7)
+    queries = [(query, 1.0)] + [(t, weight) for t in terms]
+    return store.search(rows, queries, k, include_stale), terms, src
+
+
+def print_recall(cfg, query, k=8, fast=None, include_stale=False):
     lang = cfg.get('language') or 'zh'
-    hits = store.search(rows, query, k)
-    head = (f'【memory · {src} · "{query}" · top {k}】' if lang == 'en'
-            else f'【记忆检索 · {src} · 话题「{query}」· 前 {k} 条】')
+    hits, terms, src = find(cfg, query, k, fast, include_stale)
+    where = ({'local': 'local store', 'shared': 'shared layer'} if lang == 'en'
+             else {'local': '本机全量', 'shared': '共享层'}).get(src, src)
+    head = (f'【memory · {where} · "{query}" · top {k}】' if lang == 'en'
+            else f'【记忆检索 · {where} · 话题「{query}」· 前 {k} 条】')
     print(head)
+    if terms:
+        print(('  also searched: ' if lang == 'en' else '  一并搜了:') + ' / '.join(terms))
     if not hits:
         print('(no match)' if lang == 'en' else '(没有匹配的记忆)')
         return 0

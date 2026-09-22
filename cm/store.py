@@ -73,37 +73,78 @@ def shared(rows):
 
 
 # ---------- 检索 ----------
-def grams(s, n=2):
-    s = re.sub(r'\s+', '', s or '')
-    return {s[i:i + n] for i in range(len(s) - n + 1)}
+# 这一段的每个选择都是在 `cm eval` 的 24 道题上量过的,不是拍脑袋(数字见 docs/recall.md):
+#   · 字段只取 内容 + 适用范围 —— 把原话、出处也搜进去,recall@8 从 88% 掉到 83%(出处带主题和机器名,是噪音)
+#   · 不做 IDF 加权 —— @3 +4 点但 @8 -5 点,对"AI 一次读 8 条"的用法是亏的
+#   · 中文按字符二元组、英文数字按词 —— @1 42%→46%(同口径消融里 @8 88%→92%);纯字符二元组在英文上是坏的,
+#     两句毫不相关的英文能撞出 0.25 的相似度
+_PUNCT = re.compile(r'[\s\u3000-\u303f\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65'
+                    r'!-/:-@\[-`{-~]+')
+_CJK = re.compile(r'[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+')
+_WORD = re.compile(r'[a-z0-9]+')
+
+
+def norm(s):
+    """归一化:去标点空白、全角转半角、英文小写。中英混排的记忆里这三件事都会咬人。"""
+    s = (s or '').translate({c: c - 0xFEE0 for c in range(0xFF01, 0xFF5F)})
+    return _PUNCT.sub(' ', s).lower()
+
+
+def tokens(s):
+    """中文切字符二元组,英文/数字切词。混排文本(「给 README 加个 badge」)两边都照顾到。"""
+    s = norm(s)
+    out = set()
+    for seg in _CJK.findall(s):
+        out |= {seg[i:i + 2] for i in range(len(seg) - 1)} if len(seg) > 1 else {seg}
+    for w in _WORD.findall(s):
+        out.add(w)
+        if len(w) > 6:                       # 长英文词给点前缀容错
+            out |= {w[i:i + 4] for i in range(len(w) - 3)}
+    return out
+
+
+def haystack(m):
+    return (m.get('content') or '') + ' ' + (m.get('scope') or '')
+
+
+def _score(g, wmap, total):
+    return sum(w for x, w in wmap.items() if x in g) / total
+
+
+def _wmap(queries):
+    """多个说法合成一张 token→权重 表。只有一个权重 1 的查询时,退化成最朴素的重叠率。"""
+    wmap = {}
+    for q, w in queries:
+        for x in tokens(q):
+            wmap[x] = max(wmap.get(x, 0.0), float(w))
+    return wmap, (sum(wmap.values()) or 1.0)
 
 
 def related(rows, query, sid=None, k=25):
-    """给提炼用的"可能要被这次修订的旧记忆"。二元组重叠 + 同 session 加权,够用且零成本。"""
-    q = grams(query)
+    """给提炼用的"可能要被这次修订的旧记忆"。同 session 的加权重,其余按相似度。"""
+    pool = live(rows)
+    wmap, total = _wmap([(query, 1.0)])
     scored = []
-    for m in live(rows):
-        s = 0.0
-        if sid and m.get('source_sid') == sid:
-            s += 5
-        g = grams(m.get('content'))
-        if q and g:
-            s += 3 * len(q & g) / len(q | g)
+    for m in pool:
+        s = 5.0 if (sid and m.get('source_sid') == sid) else 0.0
+        s += 3 * _score(tokens(haystack(m)), wmap, total)
         if s > 0:
             scored.append((s, m))
     scored.sort(key=lambda x: -x[0])
     return [m for _, m in scored[:k]]
 
 
-def search(rows, query, k=8):
-    """给 `cm recall` 用:按话题找记忆,已推翻的不返回。"""
-    q = grams(query)
+def search(rows, queries, k=8, include_stale=False):
+    """给 `cm recall` 用。queries 是字符串,或者 [(说法, 权重)] —— 后者给查询扩展留的口子。"""
+    if isinstance(queries, str):
+        queries = [(queries, 1.0)]
+    pool = [m for m in rows if include_stale or m.get('status') != 'overturned']
+    wmap, total = _wmap([(q, w) for q, w in queries if norm(q).strip()])
+    if not (pool and wmap):
+        return []
     out = []
-    for m in rows:
-        if m.get('status') == 'overturned':
-            continue
-        g = grams((m.get('content') or '') + (m.get('scope') or ''))
-        s = len(q & g) / (len(q) or 1)
+    for m in pool:
+        s = _score(tokens(haystack(m)), wmap, total)
         if s > 0:
             out.append((s, m))
     out.sort(key=lambda x: -x[0])

@@ -41,10 +41,10 @@ def _looks_like_limit(text):
     return any(m in t for m in LIMIT_MARKERS)
 
 
-def _ask_claude_cli(prompt, timeout):
+def _ask_claude_cli(prompt, timeout, model=None, effort=None):
     lc = cfg.get('llm') or {}
-    cmd = [lc.get('command') or 'claude', '-p', '--model', MODEL, '--effort', EFFORT,
-           *(lc.get('claude_flags') or [])]
+    cmd = [lc.get('command') or 'claude', '-p', '--model', model or MODEL,
+           '--effort', effort or EFFORT, *(lc.get('claude_flags') or [])]
     r = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
                        timeout=timeout, cwd=HOME)
     out = (r.stdout or '').strip()
@@ -58,13 +58,13 @@ def _ask_claude_cli(prompt, timeout):
     return out
 
 
-def _ask_openai(prompt, timeout):
+def _ask_openai(prompt, timeout, model=None, effort=None):
     lc = cfg.get('llm') or {}
     key = os.environ.get(lc.get('api_key_env') or 'OPENAI_API_KEY', '')
     if not key:
         raise RuntimeError(f"环境变量 {lc.get('api_key_env')} 没设置,openai 后端用不了")
     body = json.dumps({
-        'model': MODEL,
+        'model': model or MODEL,
         'messages': [{'role': 'user', 'content': prompt}],
         'temperature': lc.get('temperature', 0.2),
         'max_tokens': lc.get('max_tokens', 8000),
@@ -83,13 +83,16 @@ def _ask_openai(prompt, timeout):
     return (data['choices'][0]['message']['content'] or '').strip()
 
 
-def ask(prompt, timeout=420):
-    """把 prompt 交给模型,返回文本。额度类失败抛 UsageLimit,其余抛 RuntimeError。"""
+def ask(prompt, timeout=420, model=None, effort=None):
+    """把 prompt 交给模型,返回文本。额度类失败抛 UsageLimit,其余抛 RuntimeError。
+
+    model/effort 可以单次覆盖:检索这类"要快要便宜"的调用不该跟夜里的提炼用同一档。
+    """
     backend = ((cfg.get('llm') or {}).get('backend') or 'claude-cli').lower()
     if backend in ('claude-cli', 'claude'):
-        return _ask_claude_cli(prompt, timeout)
+        return _ask_claude_cli(prompt, timeout, model, effort)
     if backend in ('openai', 'openai-compatible', 'api'):
-        return _ask_openai(prompt, timeout)
+        return _ask_openai(prompt, timeout, model, effort)
     raise RuntimeError(f'不认识的 llm.backend: {backend}')
 
 

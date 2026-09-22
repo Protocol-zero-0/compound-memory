@@ -7,7 +7,7 @@
 一个后台进程,每晚读你和 AI 的对话原文,提炼成"关于你"的长期记忆;
 下一个 session —— 哪怕换了机器、换了工具、换了模型 —— 开局就带着它。
 
-[中文](README.md) · [English](README_EN.md) · [dsh 会话格式](docs/dsh.md) · [共享层](docs/sinks.md)
+[中文](README.md) · [English](README_EN.md) · [检索(量过的)](docs/recall.md) · [dsh 会话格式](docs/dsh.md) · [共享层](docs/sinks.md)
 
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![harness](https://img.shields.io/badge/harness-Claude%20Code%20%7C%20Codex%20%7C%20dsh-green)
@@ -25,6 +25,8 @@
 2. **开局自动注入。** 新 session 一开,快照就在上下文里:你的长期偏好、你明确提过的要求、
    最近的决定、还没收口的事。不用再从头解释一遍。
 3. **工作中按需检索。** `cm recall "报价"` 翻出相关记忆和出处。快照只是导航,故意很短。
+   检索怎么调的、为什么不加那些花哨的东西,都有[量过的数字](docs/recall.md) —— 还给了你
+   同一把尺子:`cm eval`。
 4. **换工具不掉记忆。** Claude Code、Codex、DeepSeek Harness 共用同一份记忆,
    三边都自动注入。
 5. **记忆会被修订,不是越堆越多。** 你改了主意,旧条会被标成"已推翻"从快照里消失;
@@ -176,6 +178,9 @@ dsh 的会话格式公开文档没写,是实测摸出来的(压缩格式、两�
 
 提示词在 `prompts/` 下,是纯文本文件 —— **这是最该你自己调的东西**。
 想改又想保留原版,把文件复制到 `~/.compound-memory/prompts/`,那边优先。
+
+改之前先 `cm eval --n 24` 存一套题,改完用 `cm eval --set <题目文件>` 复跑同一套题 ——
+没有尺子的调参是自欺欺人。检索侧的消融和结论见 [docs/recall.md](docs/recall.md)。
 
 ---
 
