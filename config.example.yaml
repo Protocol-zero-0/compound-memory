@@ -61,10 +61,10 @@ baseline_file: ''
 snapshot_cache_seconds: 3600   # `cm snapshot` 从共享层取快照的缓存时间
 
 recall:                        # `cm recall "话题"` 的检索
-  expand: false                # 先让小模型把问题扩成几个"记忆里可能真出现的说法"再搜。
-                               # 默认关:中文记忆上实测 recall@8 纹丝不动(88%→88%),排序涨的那点
-                               # 逐题是 5 好 4 差=噪音,却每次多 12 秒。英文语料可能不一样,
-                               # 开之前先 `cm eval --arms literal,expand` 在自己库上量一遍。
+  expand: true                 # 先让小模型把问题扩成几个"记忆里可能真出现的说法"再搜。
+                               # 一百多条记忆的库上实测 recall@8 75% → 92%(逐题 7 好 1 差)。
+                               # 代价:一个没见过的问题多 ~20 秒,之后永久缓存、0.1 秒。
+                               # 记忆很少(几十条)时没用 —— 那时 @8 本来就到顶了。
   model: claude-haiku-4-5-20251001   # 便宜的小模型就够;换了 llm.backend 记得改成你那边的小模型,
                                      # 留空 = 用上面那个 model(贵,不建议)
   effort: low
