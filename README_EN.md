@@ -175,7 +175,7 @@ Lives in `~/.compound-memory/config.yaml` (copied from `config.example.yaml` at 
 |---|---|---|
 | `user_name` | asked at install | who the memory is about; the `{user_name}` in the prompts |
 | `language` | `zh` | `zh` / `en` — language of the prompts and the snapshot |
-| `model` | `claude-opus-5` | model used for distillation |
+| `model` | `opus` | model used for distillation. An alias tracks the latest release; write a full ID to pin one |
 | `effort` | `high` | reasoning effort (`claude-cli` backend only) |
 | `llm.backend` | `claude-cli` | `claude-cli` (the CLI you're logged into) or `openai` |
 | `llm.claude_flags` | see example | the slim entry point; break these and overhead multiplies |
@@ -235,7 +235,7 @@ If you also want humans to browse it (on a phone, editing statuses by hand), use
 
 **Can I use it without Claude?**
 Yes — `llm.backend: openai` plus `base_url` and `api_key_env`. Just note that the defaults
-(Opus / high) were chosen by a side-by-side comparison; if you swap the model, re-check coverage.
+(`opus` / high) were chosen by a side-by-side comparison; if you swap the model, re-check coverage.
 
 **What's left after uninstalling?**
 `cm uninstall` removes the three injections and the cron entry; pre-change backups stay in

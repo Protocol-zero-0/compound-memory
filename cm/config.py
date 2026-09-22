@@ -12,7 +12,7 @@ CONFIG_PATH = os.path.join(HOME, 'config.yaml')
 EXAMPLE_PATH = os.path.join(REPO, 'config.example.yaml')
 
 DEFAULTS = {
-    'user_name': 'you', 'language': 'zh', 'model': 'claude-opus-5', 'effort': 'high',
+    'user_name': 'you', 'language': 'zh', 'model': 'opus', 'effort': 'high',
     'llm': {'backend': 'claude-cli', 'command': 'claude', 'claude_flags': [
         '--no-session-persistence', '--disable-slash-commands', '--strict-mcp-config',
         '--setting-sources', 'local', '--tools', ''],

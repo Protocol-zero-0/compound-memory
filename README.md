@@ -161,7 +161,7 @@ dsh 的会话格式公开文档没写,是实测摸出来的(压缩格式、两�
 |---|---|---|
 | `user_name` | 安装时问你 | 记忆是关于谁的;提示词里的 `{user_name}` |
 | `language` | `zh` | `zh` / `en`,决定提炼提示词与快照的语言 |
-| `model` | `claude-opus-5` | 后台提炼用的模型 |
+| `model` | `opus` | 后台提炼用的模型。写别名,自动跟最新版;要钉死版本就写完整 ID |
 | `effort` | `high` | 思考深度(仅 `claude-cli` 后端) |
 | `llm.backend` | `claude-cli` | `claude-cli`(用本机已登录的 claude)或 `openai`(任何兼容接口) |
 | `llm.claude_flags` | 见示例 | 精简出口的 flag;改坏了背景开销会翻几倍 |
@@ -218,7 +218,7 @@ dsh 那边还多一层(它自己标了 `source.kind: plugin`)。
 
 **能不用 Claude 吗?**
 能。`llm.backend: openai` + `base_url` + `api_key_env`,任何 OpenAI 兼容接口。
-只是默认值(Opus / high)是在对比实验里选出来的,换模型请自己验一遍覆盖率。
+只是默认值(`opus` / high)是在对比实验里选出来的,换模型请自己验一遍覆盖率。
 
 **卸载会留下什么?**
 `cm uninstall` 摘掉三处注入和 cron,改动前的备份在 `~/.compound-memory/backups/`。
