@@ -6,7 +6,8 @@ user_name: Alex            # 记忆是"关于你"的。提示词里的 {user_nam
 language: zh               # zh | en:提炼提示词与快照的语言
 
 # ---- 模型 ----
-model: claude-opus-5       # 后台提炼用的模型
+model: opus                # 后台提炼用的模型。写别名不写版本号:`opus` 永远指向最新的 Opus,
+                           # 出新版不用改配置。想钉死某个版本就写完整 ID(如 claude-opus-5-5)
 effort: high               # 思考深度(仅 claude-cli 后端);对比实验见 README「为什么是这些默认值」
 
 llm:
@@ -65,8 +66,8 @@ recall:                        # `cm recall "话题"` 的检索
                                # 一百多条记忆的库上实测 recall@8 75% → 92%(逐题 7 好 1 差)。
                                # 代价:一个没见过的问题多 ~20 秒,之后永久缓存、0.1 秒。
                                # 记忆很少(几十条)时没用 —— 那时 @8 本来就到顶了。
-  model: claude-haiku-4-5-20251001   # 便宜的小模型就够;换了 llm.backend 记得改成你那边的小模型,
-                                     # 留空 = 用上面那个 model(贵,不建议)
+  model: haiku                 # 便宜的小模型就够;同样写别名。换了 llm.backend 记得改成你那边的小模型,
+                               # 留空 = 用上面那个 model(贵,不建议)
   effort: low
   terms: 6                     # 最多扩几个说法
   expanded_weight: 0.7         # 扩出来的说法权重低于原问题
