@@ -1,0 +1,16 @@
+#!/bin/sh
+# 全局钩子目录里除 pre-push 以外的每个钩子都是指向这里的链接。
+# 作用只有一个:把调用原样转给仓库自己原来的钩子。不这么做的话,
+# 设了全局 core.hooksPath 之后,每个仓库自带的 pre-commit / commit-msg 等都会悄悄失效。
+name=$(basename "$0")
+common=$(git rev-parse --git-common-dir 2>/dev/null) || exit 0
+chain=$(git config --get privacy-gate.chain 2>/dev/null)
+if [ -n "$chain" ]; then
+  case "$chain" in /*) dir="$chain" ;; *) dir="$(git rev-parse --show-toplevel)/$chain" ;; esac
+else
+  dir="$common/hooks"
+fi
+self=$(cd "$(dirname "$0")" && pwd -P)
+[ -d "$dir" ] && [ "$(cd "$dir" && pwd -P)" = "$self" ] && exit 0   # 别自己调自己
+[ -x "$dir/$name" ] && exec "$dir/$name" "$@"
+exit 0

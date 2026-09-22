@@ -7,7 +7,7 @@
 一个后台进程,每晚读你和 AI 的对话原文,提炼成"关于你"的长期记忆;
 下一个 session —— 哪怕换了机器、换了工具、换了模型 —— 开局就带着它。
 
-[中文](README.md) · [English](README_EN.md) · [检索(量过的)](docs/recall.md) · [dsh 会话格式](docs/dsh.md) · [共享层](docs/sinks.md)
+[中文](README.md) · [English](README_EN.md) · [检索(量过的)](docs/recall.md) · [推送隐私闸](docs/privacy-gate.md) · [dsh 会话格式](docs/dsh.md) · [共享层](docs/sinks.md)
 
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![harness](https://img.shields.io/badge/harness-Claude%20Code%20%7C%20Codex%20%7C%20dsh-green)
@@ -234,10 +234,10 @@ dsh 那边还多一层(它自己标了 `source.kind: plugin`)。
 - **密钥清洗做在导出那一步。** 不是事后拿检查表去抹 —— 事后抹是打地鼠。
 - **本地全量、出去脱敏。** 本机 `observations.jsonl` 留全部,共享层只有 `share: true` 的。
 - **随时可撤回。** 共享层是文件(或一张表),删掉就没了;本地记忆重跑原文可以重建。
-- **推代码之前过闸。** 改了文档、加了例子,最容易顺手把自己的真实记忆抄进去。
-  `python3 tools/privacy-check.py --install-hook` 装一个 pre-push 钩子:
-  拿你自己的敏感词表(放在仓库外面)和记忆库原文,扫当前文件、全部历史、提交说明,
-  命中就推不出去。
+- **推代码之前过闸。** 写文档、举例子的时候,最容易顺手把自己的真实内容写进仓库。
+  `bash tools/global-gate/install.sh` 给**本机所有仓库**装一道推送闸:拿你的敏感词表
+  (放在仓库外面)和你所有会话原文的指纹,只扫这次要推的新内容,命中就推不出去。
+  你自己的业务站点可以设"发布档",只拦真隐私。细节见 [docs/privacy-gate.md](docs/privacy-gate.md)。
 
 ---
 
