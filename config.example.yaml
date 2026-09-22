@@ -73,6 +73,11 @@ recall:                        # `cm recall "话题"` 的检索
   expanded_weight: 0.7         # 扩出来的说法权重低于原问题
   timeout: 45
 
+# ---- 推送前隐私闸(tools/privacy-check.py)----
+privacy:
+  extra_sources: []        # 除了会话原文和记忆库,还要拿来比对的文件(可写通配),比如别的记忆库、会议转写
+                           # 例:['~/old-memory/*.jsonl', '~/meetings/**/*.md']
+
 # ---- 各 harness ----
 hosts:
   claude:

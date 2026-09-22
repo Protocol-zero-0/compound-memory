@@ -134,6 +134,12 @@ def cmd_eval(args):
     return eval_main(args)
 
 
+def cmd_privacy_index(args):
+    from .privacy import build
+    build(config.load())
+    return 0
+
+
 def cmd_sink_init(args):
     from . import sinks
     cfg = config.load()
@@ -153,6 +159,7 @@ COMMANDS = {
     'distill': cmd_distill, 'snapshot': cmd_snapshot, 'recall': cmd_recall,
     'doctor': cmd_doctor, 'install': cmd_install, 'uninstall': cmd_uninstall,
     'sessions': cmd_sessions, 'sink-init': cmd_sink_init, 'eval': cmd_eval,
+    'privacy-index': cmd_privacy_index,
 }
 
 USAGE = """compound-memory —— 把每天的对话自动沉淀成"关于你"的长期记忆
@@ -163,6 +170,7 @@ USAGE = """compound-memory —— 把每天的对话自动沉淀成"关于你"�
   cm doctor                                   看现状:配置、记忆条数、各 harness 接没接上
   cm sessions [N]                             列最近的 session 与处理状态
   cm eval [--n N] [--set 题目文件]            量检索:出题→看标准答案排第几
+  cm privacy-index                            重建推送隐私闸的原文指纹索引(只存哈希)
   cm install / cm uninstall                   接上/摘掉开局注入与 cron
   cm sink-init                                共享层初始化提示
 

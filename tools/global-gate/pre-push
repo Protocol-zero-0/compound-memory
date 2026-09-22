@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# 全局推送隐私闸:推到 GitHub 之前,扫这次**新增**的内容。
+#   词表(你的名字、客户、机器、表 ID…)+ 原文指纹(你所有会话说过的话)
+# 干净就放行;有命中就拦下、记日志、通知你。放行命中项只能由你本人决定。
+set -u
+remote="$1"; url="$2"
+here=$(cd "$(dirname "$0")/.." && pwd -P)
+CHECK="$here/privacy-check.py"
+CM_HOME="${CM_HOME:-$HOME/.compound-memory}"
+LOG="$CM_HOME/privacy-gate.log"
+NOTIFY="$CM_HOME/privacy-gate-notify"
+OWNER=$(git config --get privacy-gate.owner 2>/dev/null || echo "仓库主人")   # 全局设一次:git config --global privacy-gate.owner <你的名字>
+input=$(cat)
+repo=$(git rev-parse --show-toplevel 2>/dev/null)
+say() { printf '%s\n' "$*" >&2; }
+note() { mkdir -p "$CM_HOME"; printf '%s %s %s %s\n' "$(date -u +%FT%TZ)" "$1" "$repo" "$url" >> "$LOG"; }
+alert() { [ -x "$NOTIFY" ] && "$NOTIFY" "$1" "$2" >/dev/null 2>&1 || true; }
+
+gate() {
+  case "$url" in
+    *github.com*) ;;
+    *) [ -n "${PRIVACY_GATE_ALL_REMOTES:-}" ] || return 0 ;;
+  esac
+  local z=0000000000000000000000000000000000000000 out rc=0 lref lsha rref rsha
+  out=$(
+    while read -r lref lsha rref rsha; do
+      [ -z "${lsha:-}" ] || [ "$lsha" = "$z" ] && continue          # 删分支,没有新内容
+      # 只查"对方还没有的":排除任何远端(含上游)已经有的提交,给别人项目提 PR 时不会把上游历史全扫一遍
+      if [ "$rsha" != "$z" ] && git cat-file -e "$rsha^{commit}" 2>/dev/null; then
+        python3 "$CHECK" --range "$lsha ^$rsha --not --remotes" 2>&1 || echo "__RC__$?"
+      else
+        python3 "$CHECK" --range "$lsha --not --remotes" 2>&1 || echo "__RC__$?"
+      fi
+    done <<< "$input"
+  )
+  printf '%s\n' "$out" | grep -v '^__RC__' >&2
+  printf '%s\n' "$out" | grep '✗' | sed "s|^|    |" >> "$LOG" 2>/dev/null || true
+  printf '%s\n' "$out" | grep -q '^__RC__' || { note PASS; return 0; }
+  fp=$(printf '%s\n' "$out" | grep '✗' | sha256sum | cut -c1-12)
+  if [ -n "${PRIVACY_GATE_ACK:-}" ] && [ "$PRIVACY_GATE_ACK" = "$fp" ]; then
+    note "ACK $fp"
+    alert "隐私闸:有人放行了命中项" "$repo → $url(确认码 $fp)。如果不是你本人放行的,马上查。"
+    say "隐私闸:确认码 $fp 与这次命中一致,已放行并记录。"
+    return 0
+  fi
+  if [ "$(git config --get privacy-gate.enforce 2>/dev/null)" = "warn" ]; then
+    # 只报警不拦:给背后有自动流程、暂时不能停的仓库用。由仓库主人决定什么时候改成拦。
+    note "WARN $fp"
+    alert "隐私闸(只报警)发现命中" "$repo → $url,已照常推送;命中见 $LOG"
+    say "隐私闸:这个仓库设的是「只报警不拦」,已放行并通知 $OWNER。"
+    return 0
+  fi
+  note "BLOCK $fp"
+  alert "隐私闸拦下一次推送" "$repo → $url,命中见 $LOG 与终端输出"
+  say ""
+  say "━━ 隐私闸拦下了这次推送 ━━"
+  say "上面每一行是一处命中。先改掉(注意历史里也要改),再推。"
+  say "如果逐条看过、确认不是隐私,**只能由 $OWNER 本人**这样放行一次:"
+  say "    PRIVACY_GATE_ACK=$fp git push ..."
+  say "AI 代推时:停下来,把命中项原样报给 $OWNER。不许自己放行、不许 --no-verify、"
+  say "不许改 privacy-gate.mode / allow / enforce —— 这些都只能由 $OWNER 决定。"
+  return 1
+}
+
+gate || exit 1
+
+# 串上仓库自己原来的 pre-push(lefthook / husky / 手写的都算)
+common=$(git rev-parse --git-common-dir 2>/dev/null)
+chain=$(git config --get privacy-gate.chain 2>/dev/null)
+if [ -n "$chain" ]; then
+  case "$chain" in /*) dir="$chain" ;; *) dir="$repo/$chain" ;; esac
+else
+  dir="$common/hooks"
+fi
+self=$(cd "$(dirname "$0")" && pwd -P)
+if [ -x "$dir/pre-push" ] && [ "$(cd "$dir" && pwd -P)" != "$self" ]; then
+  printf '%s\n' "$input" | "$dir/pre-push" "$@" || exit $?
+fi
+exit 0

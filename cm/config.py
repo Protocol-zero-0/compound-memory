@@ -27,6 +27,7 @@ DEFAULTS = {
     'snapshot_cache_seconds': 3600,
     'recall': {'expand': True, 'model': '', 'effort': 'low', 'terms': 6,
                'expanded_weight': 0.7, 'timeout': 45},
+    'privacy': {'extra_sources': []},
     'hosts': {'claude': {'enabled': 'auto', 'dir': '~/.claude/projects', 'inject': True},
               'codex': {'enabled': 'auto', 'dir': '~/.codex/sessions', 'inject': True},
               'dsh': {'enabled': 'auto', 'dir': '~/.dsh/sessions', 'inject': True,

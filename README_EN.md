@@ -8,7 +8,7 @@ A background process that reads your own transcripts every night, distills them 
 long-term memory *about you*, and hands it to your next session — on any machine,
 in any harness, with any model.
 
-[中文](README.md) · [English](README_EN.md) · [Retrieval, measured](docs/recall.md) · [dsh session format](docs/dsh.md) · [Shared layer](docs/sinks.md)
+[中文](README.md) · [English](README_EN.md) · [Retrieval, measured](docs/recall.md) · [Push privacy gate](docs/privacy-gate.md) · [dsh session format](docs/dsh.md) · [Shared layer](docs/sinks.md)
 
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![harness](https://img.shields.io/badge/harness-Claude%20Code%20%7C%20Codex%20%7C%20dsh-green)
@@ -255,10 +255,12 @@ Yes — `llm.backend: openai` plus `base_url` and `api_key_env`. Just note that 
   the shared layer only gets entries marked `share: true`.
 - **Always revocable.** The shared layer is files (or one table) — delete it and it's gone;
   local memories can be rebuilt from the transcripts.
-- **Gate your pushes.** Editing docs and adding examples is exactly when your real memories
-  sneak into the repo. `python3 tools/privacy-check.py --install-hook` adds a pre-push hook
-  that scans current files, full history and commit messages against your own term list
-  (kept outside the repo) and your memory store's original sentences — any hit blocks the push.
+- **Gate your pushes.** Writing docs and examples is exactly when your real content sneaks
+  into a repo. `bash tools/global-gate/install.sh` gates **every repo on this machine**: new
+  content in each push is checked against your own term list (kept outside the repo) and
+  fingerprints of everything you've said in your sessions; a hit blocks the push. Your own
+  publishing repos can use "publish" mode, which only blocks truly private items.
+  See [docs/privacy-gate.md](docs/privacy-gate.md) (Chinese).
 
 ---
 
