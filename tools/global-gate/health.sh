@@ -42,3 +42,23 @@ while read -r g; do
   git -C "$d" config --$scope core.hooksPath "$DEST/hooks"
   alert "隐私闸:新包进一个仓库" "$d(它自己设了 hooksPath=$v,多半是 npm install 时 husky 设的)"
 done
+
+# ---- GitHub 那一侧 ----
+# 词表改了,各仓库 Action 用的加密词表要跟着更新,否则 GitHub 上一直在用旧词表查
+TERMS="$CM_HOME/privacy-terms.txt"
+REPOS="$DEST/state/action-repos.txt"          # 装了 privacy-gate Action 的仓库,一行一个 owner/repo
+if [ -s "$REPOS" ] && [ -f "$TERMS" ] && command -v gh >/dev/null; then
+  h=$(sha256sum "$TERMS" | cut -c1-16)
+  if [ "$h" != "$(cat "$DEST/state/terms-synced.sha" 2>/dev/null)" ]; then
+    fail=0
+    while read -r r; do [ -n "$r" ] && { gh secret set PRIVACY_TERMS -R "$r" < "$TERMS" >/dev/null 2>&1 || fail=$((fail+1)); }; done < "$REPOS"
+    if [ $fail -eq 0 ]; then echo "$h" > "$DEST/state/terms-synced.sha"; echo "$(ts) 词表已同步到 $(wc -l < "$REPOS") 个仓库"
+    else alert "隐私闸:词表同步到 GitHub 有 $fail 个仓库失败" "明晚会重试;看 gh auth status"; fi
+  fi
+  # 你名下新建了自有仓库、还没装 Action:只通知,不自动装(那是对外改动)
+  owner=$(git config --global --get privacy-gate.github-owner || true)
+  if [ -n "$owner" ]; then
+    new=$(gh repo list "$owner" --limit 300 --json nameWithOwner,isFork,isArchived --jq '.[] | select(.isFork==false and .isArchived==false) | .nameWithOwner' 2>/dev/null | sort | comm -23 - <(sort "$REPOS"))
+    [ -n "$new" ] && alert "隐私闸:有新仓库还没装 GitHub 侧复查" "$(echo $new | tr ' ' ',')"
+  fi
+fi
