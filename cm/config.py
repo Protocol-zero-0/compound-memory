@@ -25,6 +25,8 @@ DEFAULTS = {
     'nightly_limit': 20, 'window_days': 7, 'max_candidates': 8, 'text_budget': 14000,
     'snapshot_max_chars': 3200, 'cron': '30 4 * * *', 'baseline_file': '',
     'snapshot_cache_seconds': 3600,
+    'recall': {'expand': False, 'model': '', 'effort': 'low', 'terms': 6,
+               'expanded_weight': 0.7, 'timeout': 45},
     'hosts': {'claude': {'enabled': 'auto', 'dir': '~/.claude/projects', 'inject': True},
               'codex': {'enabled': 'auto', 'dir': '~/.codex/sessions', 'inject': True},
               'dsh': {'enabled': 'auto', 'dir': '~/.dsh/sessions', 'inject': True,

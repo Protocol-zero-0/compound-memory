@@ -8,7 +8,7 @@ A background process that reads your own transcripts every night, distills them 
 long-term memory *about you*, and hands it to your next session — on any machine,
 in any harness, with any model.
 
-[中文](README.md) · [English](README_EN.md) · [dsh session format](docs/dsh.md) · [Shared layer](docs/sinks.md)
+[中文](README.md) · [English](README_EN.md) · [Retrieval, measured](docs/recall.md) · [dsh session format](docs/dsh.md) · [Shared layer](docs/sinks.md)
 
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![harness](https://img.shields.io/badge/harness-Claude%20Code%20%7C%20Codex%20%7C%20dsh-green)
@@ -27,7 +27,8 @@ in any harness, with any model.
    your standing preferences, what you have explicitly asked for, recent decisions, and
    what is still open. No re-explaining.
 3. **Searches on demand.** `cm recall "pricing"` pulls the relevant memories with their
-   sources. The snapshot stays short on purpose.
+   sources. The snapshot stays short on purpose. Every retrieval choice is
+   [measured, not asserted](docs/recall.md) — and you get the same ruler: `cm eval`.
 4. **Switching tools doesn't lose memory.** Claude Code, Codex and DeepSeek Harness share
    one memory and all three get the injection.
 5. **Memories get revised, not piled up.** Change your mind and the old entry is marked
@@ -192,6 +193,10 @@ Lives in `~/.compound-memory/config.yaml` (copied from `config.example.yaml` at 
 The prompts are plain files under `prompts/` — **the thing you should most want to tune**.
 To edit them while keeping the originals, copy them to `~/.compound-memory/prompts/`,
 which takes precedence.
+
+Before you change them, run `cm eval --n 24` to freeze a question set, then
+`cm eval --set <file>` afterwards to re-run the same questions — tuning without a ruler
+is fooling yourself. Retrieval ablations and conclusions: [docs/recall.md](docs/recall.md).
 
 ---
 
