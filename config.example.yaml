@@ -1,0 +1,76 @@
+# compound-memory 配置。install.sh 会把这份文件复制成 ~/.compound-memory/config.yaml,
+# 之后只改那一份;这里保持为示例。所有 ~ 会展开成你的主目录。
+
+# ---- 你是谁 ----
+user_name: Alex            # 记忆是"关于你"的。提示词里的 {user_name} 会替换成它
+language: zh               # zh | en:提炼提示词与快照的语言
+
+# ---- 模型 ----
+model: claude-opus-5       # 后台提炼用的模型
+effort: high               # 思考深度(仅 claude-cli 后端);对比实验见 README「为什么是这些默认值」
+
+llm:
+  backend: claude-cli      # claude-cli(用本机已登录的 claude,零额外账号)| openai(任何 OpenAI 兼容接口)
+  # --- backend: claude-cli ---
+  command: claude          # 可执行文件名或绝对路径
+  claude_flags:            # 精简出口:关工具/关 skill/关 MCP/不落会话文件,单次背景开销从 ~4.3 万降到 ~1.1 万 token
+    - --no-session-persistence
+    - --disable-slash-commands
+    - --strict-mcp-config
+    - --setting-sources
+    - local
+    - --tools
+    - ''
+  # --- backend: openai ---
+  base_url: https://api.openai.com/v1
+  api_key_env: OPENAI_API_KEY   # 只写环境变量名,永远不要把密钥写进配置文件
+  temperature: 0.2
+  max_tokens: 8000
+
+# ---- 共享层(记忆出机之后放哪)----
+sink: local                # local(纯本地文件,零账号)| github(推私有仓库)| feishu(飞书多维表格)
+sinks:
+  local:
+    dir: ''                # 留空 = <数据目录>/share(数据目录默认 ~/.compound-memory,可用 CM_HOME 改)
+  github:
+    repo_dir: ''           # 一个已经 git clone 好、能免密 push 的目录;留空 = <数据目录>/share-git
+    branch: main
+    push: true
+  feishu:
+    cli: lark-cli          # 需要自己先装好并登录
+    base_token: ''         # 多维表格 token
+    table_id: ''           # 记忆表 id(字段见 docs/sinks.md)
+    snapshot_doc: ''       # 快照文档 token;留空则第一次运行时自动创建
+
+# ---- 额度与规模 ----
+nightly_limit: 20          # 每次运行最多处理多少个 session(防止一夜烧穿额度)
+window_days: 7             # 只看最近多少天有新对话的 session;首次补历史用 `cm distill --days 120`
+max_candidates: 8          # 每个 session 最多提炼几条记忆
+text_budget: 14000         # 每个 session 喂给模型的发言字数上限(头 40% + 尾 60%)
+snapshot_max_chars: 3200   # 快照正文硬上限;超了自动压缩
+cron: '30 4 * * *'         # 每晚提炼的时间(本机时区)
+
+# ---- 底线附录(可选)----
+# 指向一个本机规则文件。它会被原样抄进快照的最后一节,不经模型改写。
+# 适合放"不因换机器而变"的硬底线(花钱、对外发信、删数据……)。留空就没有这一节。
+baseline_file: ''
+
+# ---- 读取侧 ----
+snapshot_cache_seconds: 3600   # `cm snapshot` 从共享层取快照的缓存时间
+
+# ---- 各 harness ----
+hosts:
+  claude:
+    enabled: auto          # auto(装了就用)| true | false
+    dir: ~/.claude/projects
+    inject: true           # 开局注入:往 ~/.claude/settings.json 加一个 SessionStart hook
+  codex:
+    enabled: auto
+    dir: ~/.codex/sessions
+    inject: true           # 开局注入:往 ~/.codex/AGENTS.md 追加一行
+  dsh:
+    enabled: auto
+    dir: ~/.dsh/sessions
+    inject: true           # 开局注入:写 ~/.dsh/AGENTS.md(已验证)+ 挂 hook 插件(见 docs/dsh.md)
+    plugin_hook: true      # false = 只写 AGENTS.md,不动 dsh profile 的 cordis.patch.yml
+    profile_dir: ''        # 留空 = 给 ~/.dsh/profiles/ 下每个 profile 都装
