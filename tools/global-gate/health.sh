@@ -62,3 +62,4 @@ if [ -s "$REPOS" ] && [ -f "$TERMS" ] && command -v gh >/dev/null; then
     [ -n "$new" ] && alert "隐私闸:有新仓库还没装 GitHub 侧复查" "$(echo $new | tr ' ' ',')"
   fi
 fi
+exit 0
