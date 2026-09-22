@@ -6,6 +6,24 @@
 """
 
 
+def remote_of(m, sink_name):
+    """这条记忆在某个共享层里的状态。
+
+    按 sink 分开存是必须的:同一份本地记忆可能先后(或同时)发到不同共享层,
+    共用一个 remote_id 的话,换 sink 之后老记录会被当成"已经同步过"而整批漏发。
+    """
+    return (m.get('remote') or {}).get(sink_name) or {}
+
+
+def remote_set(m, sink_name, rid, status):
+    m.setdefault('remote', {})[sink_name] = {'id': rid, 'status': status}
+
+
+def needs_push(m, sink_name):
+    r = remote_of(m, sink_name)
+    return not r.get('id') or r.get('status') != m.get('status')
+
+
 class Sink:
     name = 'base'
 
@@ -29,6 +47,10 @@ class Sink:
 
     def fetch_memories(self):
         return []
+
+    def init(self):
+        """第一次用这个共享层时的准备工作(建表、建目录…)。默认什么都不用做。"""
+        return '不用初始化'
 
     def describe(self):
         return self.name

@@ -7,7 +7,7 @@
 import json, os, time
 
 from .. import config, llm, store
-from . import Sink
+from . import Sink, remote_set
 
 README = """# compound-memory 共享层
 
@@ -39,8 +39,7 @@ class LocalSink(Sink):
             r['quote'] = store.scrub(r.get('quote'))
             r['scope'] = store.scrub(r.get('scope'))
             out.append(r)
-            m['remote_id'] = m['id']
-            m['remote_status'] = m.get('status')
+            remote_set(m, self.name, m['id'], m.get('status'))
         d = self.dir()
         llm.atomic_write(os.path.join(d, 'memories.jsonl'),
                          ''.join(json.dumps(r, ensure_ascii=False) + '\n' for r in out))

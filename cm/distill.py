@@ -115,7 +115,7 @@ def distill_session(rec, rows, cfg):
                           if c.get('old_status') else None,
             'share': bool(c.get('share')),
             'share_reason': c.get('share_reason') or '',
-            'batch': BATCH, 'remote_id': None, 'remote_status': None,
+            'batch': BATCH, 'remote': {},
         })
     return data.get('topic'), data.get('summary'), out
 
@@ -170,7 +170,7 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
     if done or snapshot_only:
         try:
             n = sink.publish_memories(rows)
-            store.save(rows)                          # remote_id 写回
+            store.save(rows)                          # 共享层回执(remote)写回
             log(f'共享层 {sink.describe()}:{n} 条')
         except Exception as ex:
             log(f'  ! 写共享层失败 {type(ex).__name__}: {str(ex)[:200]}')
