@@ -8,7 +8,7 @@ CM_HOME="${CM_HOME:-$HOME/.compound-memory}"
 ROOTS="${PRIVACY_GATE_ROOTS:-$HOME}"
 NOTIFY="$CM_HOME/privacy-gate-notify"
 ts() { date -u +%FT%TZ; }
-alert() { echo "$(ts) $1: $2"; [ -x "$NOTIFY" ] && "$NOTIFY" "$1" "$2" >/dev/null 2>&1 || true; }
+alert() { echo "$(ts) $1: $2"; [ -z "${PRIVACY_GATE_QUIET:-}" ] && [ -x "$NOTIFY" ] && "$NOTIFY" "$1" "$2" >/dev/null 2>&1 || true; }
 
 "$REPO/bin/cm" privacy-index >/dev/null 2>&1 || alert "隐私闸:索引重建失败" "手动跑 cm privacy-index 看原因;期间只有词表在工作"
 
@@ -55,11 +55,25 @@ if [ -s "$REPOS" ] && [ -f "$TERMS" ] && command -v gh >/dev/null; then
     if [ $fail -eq 0 ]; then echo "$h" > "$DEST/state/terms-synced.sha"; echo "$(ts) 词表已同步到 $(wc -l < "$REPOS") 个仓库"
     else alert "隐私闸:词表同步到 GitHub 有 $fail 个仓库失败" "明晚会重试;看 gh auth status"; fi
   fi
-  # 你名下新建了自有仓库、还没装 Action:只通知,不自动装(那是对外改动)
+  # 你名下新建的自有仓库:自动装上(密文 → Actions 开关 → workflow 文件),不用你动手。
+  # 空仓库、本机副本不同步的这次跳过、下次再试;连续 3 晚还装不上才通知你。
   owner=$(git config --global --get privacy-gate.github-owner || true)
   if [ -n "$owner" ]; then
+    pend="$DEST/state/action-pending.tsv"; touch "$pend"
     new=$(gh repo list "$owner" --limit 300 --json nameWithOwner,isFork,isArchived --jq '.[] | select(.isFork==false and .isArchived==false) | .nameWithOwner' 2>/dev/null | sort | comm -23 - <(sort "$REPOS"))
-    [ -n "$new" ] && alert "隐私闸:有新仓库还没装 GitHub 侧复查" "$(echo $new | tr ' ' ',')"
+    for r in $new; do
+      out=$(PRIVACY_ACTION_TEMPLATE="$DEST/privacy-gate.yml" bash "$DEST/action-install.sh" "$r" strict 2>&1); rc=$?
+      if [ $rc -eq 0 ]; then
+        echo "$r" >> "$REPOS"; grep -v "^$r	" "$pend" > "$pend.tmp"; mv "$pend.tmp" "$pend"
+        alert "隐私闸:新仓库已自动装上 GitHub 侧复查" "$out"
+      elif [ $rc -eq 10 ]; then
+        n=$(( $(awk -F'\t' -v r="$r" '$1==r{print $2}' "$pend") + 1 )); grep -v "^$r	" "$pend" > "$pend.tmp"; printf '%s\t%s\n' "$r" "$n" >> "$pend.tmp"; mv "$pend.tmp" "$pend"
+        echo "$(ts) $out(第 $n 晚)"
+        [ $n -ge 3 ] && alert "隐私闸:新仓库连续 $n 晚没装上复查" "$out"
+      else
+        alert "隐私闸:给新仓库装复查失败" "$out"
+      fi
+    done
   fi
 fi
 exit 0
