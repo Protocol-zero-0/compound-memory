@@ -56,8 +56,9 @@ mkdir -p "$DEST/hooks" "$DEST/state"
 # 1. 拷脚本
 cp "$REPO/tools/privacy-check.py" "$DEST/privacy-check.py"
 cp "$HERE/pre-push" "$HERE/_dispatch" "$DEST/hooks/"
-cp "$HERE/health.sh" "$DEST/health.sh"
-chmod +x "$DEST/hooks/pre-push" "$DEST/hooks/_dispatch" "$DEST/health.sh"
+cp "$HERE/health.sh" "$HERE/action-install.sh" "$DEST/"
+cp "$REPO/tools/github-action/privacy-gate.yml" "$DEST/privacy-gate.yml"
+chmod +x "$DEST/hooks/pre-push" "$DEST/hooks/_dispatch" "$DEST/health.sh" "$DEST/action-install.sh"
 for h in $HOOKS; do ln -sfn _dispatch "$DEST/hooks/$h"; done
 echo "  脚本 → $DEST"
 
