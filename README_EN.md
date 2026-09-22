@@ -255,6 +255,10 @@ Yes — `llm.backend: openai` plus `base_url` and `api_key_env`. Just note that 
   the shared layer only gets entries marked `share: true`.
 - **Always revocable.** The shared layer is files (or one table) — delete it and it's gone;
   local memories can be rebuilt from the transcripts.
+- **Gate your pushes.** Editing docs and adding examples is exactly when your real memories
+  sneak into the repo. `python3 tools/privacy-check.py --install-hook` adds a pre-push hook
+  that scans current files, full history and commit messages against your own term list
+  (kept outside the repo) and your memory store's original sentences — any hit blocks the push.
 
 ---
 
