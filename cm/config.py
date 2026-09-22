@@ -23,7 +23,7 @@ DEFAULTS = {
               'github': {'repo_dir': '', 'branch': 'main', 'push': True},
               'feishu': {'cli': 'lark-cli', 'base_token': '', 'table_id': '', 'snapshot_doc': ''}},
     'nightly_limit': 20, 'window_days': 7, 'max_candidates': 8, 'text_budget': 14000,
-    'snapshot_max_chars': 3200, 'cron': '30 4 * * *', 'baseline_file': '',
+    'snapshot_max_chars': 3200, 'snapshot_input_budget': 25600, 'cron': '30 4 * * *', 'baseline_file': '',
     'snapshot_cache_seconds': 3600,
     'recall': {'expand': False, 'model': '', 'effort': 'low', 'terms': 6,
                'expanded_weight': 0.7, 'timeout': 45},
@@ -239,8 +239,10 @@ def _fmt(value):
 
 
 def _set_line(lines, keys, value):
-    depth, start, end = 0, 0, len(lines)
+    """按缩进逐层定位 keys 指向的那一行。顶层键的缩进是 0,子键是父键 + 2。"""
+    start, end = 0, len(lines)
     indent_of_parent = -1
+    child_indent = 0                                   # 当前这一层的键应该缩进几格
     for ki, key in enumerate(keys):
         found = None
         for i in range(start, end):
@@ -251,7 +253,7 @@ def _set_line(lines, keys, value):
             ind = len(raw) - len(raw.lstrip(' '))
             if ki > 0 and ind <= indent_of_parent:
                 break                                  # 出了父块,别越界匹配到同名键
-            if body.split(':')[0].strip() == key and (ind == indent_of_parent + 2 or ki == 0 and ind == 0):
+            if body.split(':')[0].strip() == key and ind == child_indent:
                 found = i
                 break
         if found is None:
@@ -264,7 +266,7 @@ def _set_line(lines, keys, value):
                         break
                 while insert_at > start and not _strip_comment(lines[insert_at - 1]).strip():
                     insert_at -= 1                     # 别插到块尾的空行/分节注释后面
-                lines.insert(insert_at, ' ' * (indent_of_parent + 2) + f'{key}: {_fmt(value)}')
+                lines.insert(insert_at, ' ' * child_indent + f'{key}: {_fmt(value)}')
             return lines
         if ki == len(keys) - 1:
             ind = len(lines[found]) - len(lines[found].lstrip(' '))
@@ -276,10 +278,10 @@ def _set_line(lines, keys, value):
             lines[found] = ' ' * ind + f'{key}: {_fmt(value)}' + comment
             return lines
         indent_of_parent = len(lines[found]) - len(lines[found].lstrip(' '))
+        child_indent = indent_of_parent + 2
         start = found + 1
         for i in range(start, end):                    # 父块的范围到下一个同级键为止
             if lines[i].strip() and (len(lines[i]) - len(lines[i].lstrip(' '))) <= indent_of_parent:
                 end = i
                 break
-        depth += 1
     return lines
