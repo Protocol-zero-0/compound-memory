@@ -62,8 +62,7 @@ class FeishuSink(Sink):
             '时效': [L.word(m.get('horizon'), self.lang)],
             '适用范围': store.scrub(m.get('scope') or ''),
             '有效期': m.get('expires') or '',
-            '出处': (m.get('source_label') or f"{m.get('host')} · {m.get('source')}:{m.get('source_sid')}")
-                    + (f" · 「{store.scrub(m.get('quote'))}」" if m.get('quote') else ''),
+            '出处': self._origin(m),
             '状态': [L.word(m.get('status'), self.lang)],
             '记忆ID': m.get('id'),
             '修订自': m.get('revises') or '',
@@ -111,7 +110,7 @@ class FeishuSink(Sink):
         out, offset = {}, 0
         while True:
             args = ['base', '+record-list', '--base-token', self.base, '--table-id', self.table,
-                    '--field-id', '记忆ID', '--limit', '200', '--json']
+                    '--field-id', '记忆ID', '--field-id', '状态', '--limit', '200', '--json']
             if offset:
                 args += ['--offset', str(offset)]
             res = self._lark(args, timeout=90)
@@ -123,15 +122,29 @@ class FeishuSink(Sink):
             for vals, rid in zip(data, rids):
                 row = {k: _one(v) for k, v in zip(fields, vals)}
                 if row.get('记忆ID'):
-                    out[row['记忆ID']] = rid
+                    out[row['记忆ID']] = (rid, L.canon(row.get('状态'), L.STATUS, None))
             if not d.get('has_more'):
                 break
             offset += len(data)
         return out
 
-    def _chunks(self, seq, n=200):
-        for i in range(0, len(seq), n):
-            yield seq[i:i + n]
+    def _chunks(self, seq, n=200, max_bytes=60000):
+        """每批最多 200 条(接口上限),而且整批 JSON 不超过 60KB —— 批量内容走命令行参数,
+        记忆正文一长,整批塞一个参数会撞操作系统的参数长度上限(实跑遇到过)。"""
+        cur, size = [], 0
+        for m in seq:
+            b = len(json.dumps(self._labels(m), ensure_ascii=False).encode())
+            if cur and (len(cur) >= n or size + b > max_bytes):
+                yield cur
+                cur, size = [], 0
+            cur.append(m); size += b
+        if cur:
+            yield cur
+
+    def _origin(self, m):
+        base = m.get('source_label') or f"{m.get('host')} · {m.get('source')}:{m.get('source_sid')}"
+        q = store.scrub(m.get('quote') or '')
+        return base + (f" · 「{q}」" if q and q not in base else '')   # 从旧系统搬来的出处里已经带着原话
 
     def publish_memories(self, rows):
         self._require()
@@ -146,7 +159,9 @@ class FeishuSink(Sink):
                 known = {}
             for m in todo:
                 if not remote_of(m, self.name).get('id') and m['id'] in known:
-                    remote_set(m, self.name, known[m['id']], None)   # 补回执,状态留空以便下面更新
+                    rid, st = known[m['id']]
+                    remote_set(m, self.name, rid, st)   # 补回执,连表里当前的状态一起记下:一样就不重写
+        todo = [m for m in todo if needs_push(m, self.name)]   # 对完账还一致的就不用再写(实跑漏过这一步,重写了一整表)
         creates = [m for m in todo if not remote_of(m, self.name).get('id')]
         updates = [m for m in todo if remote_of(m, self.name).get('id')]
         n = 0

@@ -30,7 +30,19 @@ WORDS = {
 }
 
 
+def _overrides():
+    """config.yaml 里的 labels:把某个值改叫别的名字(比如接进一张已有的表,那张表里叫「关于某某」)。"""
+    try:
+        from . import config
+        return config.load().get('labels') or {}
+    except Exception:
+        return {}
+
+
 def word(key, lang='zh'):
+    ov = _overrides()
+    if key in ov:
+        return ov[key]
     return WORDS.get(lang, WORDS['zh']).get(key, key)
 
 
@@ -50,6 +62,8 @@ def canon(value, group, default):
             for k, v in table.items():
                 _REVERSE[v.lower()] = k
                 _REVERSE[k.lower()] = k
+        for k, v in _overrides().items():
+            _REVERSE[str(v).lower()] = k
     if value is None:
         return default
     v = str(value).strip().lower()

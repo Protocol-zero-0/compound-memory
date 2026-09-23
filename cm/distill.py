@@ -120,6 +120,29 @@ def distill_session(rec, rows, cfg):
     return data.get('topic'), data.get('summary'), out
 
 
+def import_sources(cfg, rows):
+    """每次提炼前,把别的记忆系统新产出的条目并进来(按记忆 ID 去重,重复跑安全)。
+    用于跟另一套系统并行过渡:比如会议还由旧系统处理,它的新记忆每晚并进这里的快照。"""
+    import importlib.util
+    paths = [config.expand(p) for p in (cfg.get('import_sources') or [])]
+    if not paths:
+        return 0
+    spec = importlib.util.spec_from_file_location('legacy', os.path.join(config.REPO, 'tools', 'import-legacy-jsonl.py'))
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    have, n = {m['id'] for m in rows}, 0
+    for p in paths:
+        if not os.path.exists(p):
+            continue
+        for line in open(p, encoding='utf-8'):
+            try:
+                m = mod.convert(json.loads(line), HOST)
+            except Exception:
+                continue
+            if m and m['id'] not in have:
+                rows.append(m); have.add(m['id']); n += 1
+    return n
+
+
 def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=False):
     global BATCH
     if not llm.try_lock('distill'):
@@ -129,6 +152,10 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
     limit = limit if limit is not None else int(cfg.get('nightly_limit') or 20)
     state = store.load_state()
     rows = store.load()
+    n_imp = import_sources(cfg, rows)
+    if n_imp:
+        store.save(rows)
+        log(f'从 import_sources 并入 {n_imp} 条新记忆')
     by_id = {m['id']: m for m in rows}
     done, errors, hit_limit = 0, [], False
 
