@@ -10,6 +10,8 @@ source: {src} · title: {title} · time: {t0} → {t1} · user turns: {turns}
 # Task
 First summarize the session in one line (topic: a short title; summary: ≤30 words on what was done and how far it got — the subject may drift mid-session, so cover the whole thing, not just the opening).
 
+Also write a plain session log, 1–4 short lines each, empty if none: points (what was discussed) / next (follow-ups: who does what) / decisions (what was decided or concluded) / reflections (lessons). Only what actually happened in this session.
+
 Then extract at most {maxn} memories **worth keeping long-term and useful for serving him later**. If there are none, return an empty list — never pad.
 
 - nature: «{w_request}» = something he explicitly asked of the AI or of how work is done (state the scope; state an expiry if he gave one). A thought, a musing, a question, a one-off decision is NOT a request — that is «{w_idea}». «{w_inference}» = a preference or tendency you infer from his behavior; say "inferred from …" inside the content. «{w_fact}» = something that happened, was decided, or resulted.
@@ -20,4 +22,4 @@ Then extract at most {maxn} memories **worth keeping long-term and useful for se
 - share: should this leave this machine, into the cross-machine shared layer? Only true when it is both necessary (an AI on another machine needs it to serve him) and appropriate (no secrets, no private details about third parties, no financial/legal/health information he clearly would not want out). When unsure, false. Give a one-line share_reason.
 
 Output JSON only — no explanation, no code fences:
-{"topic":"…","summary":"…","candidates":[{"nature":"{nature_opts}","kind":"{kind_opts}","horizon":"{horizon_opts}","content":"…","scope":"where it applies, or empty","expires":"expiry, or empty","quote":"his own words, ≤25 words","revises":"memory id or null","old_status":"{old_status_opts} or null","share":true,"share_reason":"…"}]}
+{"topic":"…","summary":"…","log":{"points":["…"],"next":["…"],"decisions":["…"],"reflections":["…"]},"candidates":[{"nature":"{nature_opts}","kind":"{kind_opts}","horizon":"{horizon_opts}","content":"…","scope":"where it applies, or empty","expires":"expiry, or empty","quote":"his own words, ≤25 words","revises":"memory id or null","old_status":"{old_status_opts} or null","share":true,"share_reason":"…"}]}

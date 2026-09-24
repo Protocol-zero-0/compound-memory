@@ -16,7 +16,14 @@ import datetime, json
 from .. import sources
 from .feishu import _one
 
-AUTO_PREFIX = ('[Claude]', '[Codex]', '[dsh]', '[会议]')
+AUTO_PREFIX = ('[Claude]', '[Codex]', '[dsh]', '[会议]', '·')
+# 纪要四项 → 表里的栏目名(config 里 sinks.feishu.session_fields / daily_fields 可改)
+SESSION_FIELDS = {'points': '讨论要点', 'next': '后续动作', 'decisions': '价值信息·决策', 'reflections': '反思·结论'}
+DAILY_FIELDS = {'overview': '当日总览', 'decisions': '关键决策·结论', 'reflections': '反思'}
+
+
+def _bullets(items):
+    return '\n'.join(f'· {x}' for x in items)
 LABEL = {'claude': 'Claude', 'codex': 'Codex', 'dsh': 'dsh'}
 
 
@@ -69,6 +76,11 @@ def sync(cfg, sink, state, days, log=print):
                 continue
             body = {'主题': st['topic'], '摘要': st.get('summary') or '', '日期': _day(r['ts_first'], tz)[1],
                     '来源': [LABEL.get(r['source'], r['source'])], '会话ID': r['sid']}
+            sf = {**SESSION_FIELDS, **(conf.get('session_fields') or {})}
+            for k, col in sf.items():
+                items = (st.get('log') or {}).get(k) or []
+                if items:
+                    body[col] = _bullets(items)
             if _upsert(sink, st_tab, body, have.get(r['sid'])):
                 n_s += 1
 
@@ -77,9 +89,10 @@ def sync(cfg, sink, state, days, log=print):
         if conf.get('meeting_base') and conf.get('meeting_table'):
             for v in _list(sink, conf['meeting_base'], conf['meeting_table'], ['日期', '主题']).values():
                 meets.setdefault(str(v.get('日期') or '')[:10], []).append(v.get('主题'))
+        df = {**DAILY_FIELDS, **(conf.get('daily_fields') or {})}
         daily = {}
-        for rid, v in _list(sink, sink.base, dl_tab, ['日期', '事件清单']).items():
-            daily.setdefault(str(v.get('日期') or '')[:10], (rid, v.get('事件清单') or ''))
+        for rid, v in _list(sink, sink.base, dl_tab, ['日期', '事件清单', *df.values()]).items():
+            daily.setdefault(str(v.get('日期') or '')[:10], (rid, v))
         for day in sorted(days):
             ev = []
             for key, r in sorted(recs.items(), key=lambda kv: kv[1].get('ts_first') or ''):
@@ -90,12 +103,22 @@ def sync(cfg, sink, state, days, log=print):
             ev += [f'[会议] {m}' for m in meets.get(day, [])]
             if not ev:
                 continue
-            rid, old = daily.get(day, (None, ''))
+            rid, old = daily.get(day, (None, {}))
+            auto = lambda col: not str(old.get(col) or '').strip() or str(old.get(col)).lstrip().startswith(AUTO_PREFIX) \
+                or str(old.get(col)).startswith('(自动生成')
             body = {'会话数': len(ev)}
-            if not old.strip() or old.lstrip().startswith(AUTO_PREFIX):
-                body['事件清单'] = '\n'.join(ev)         # 人写的清单不覆盖
+            if auto('事件清单'):
+                body['事件清单'] = '\n'.join(ev)         # 人写的内容一律不覆盖
+            logs = [(state.get(k) or {}) for k, r in recs.items()
+                    if r.get('ts_first') and _day(r['ts_first'], tz)[0] == day and (state.get(k) or {}).get('topic')]
+            agg = {'overview': [f"{x['topic']}:{x.get('summary') or ''}" for x in logs],
+                   'decisions': [d for x in logs for d in ((x.get('log') or {}).get('decisions') or [])],
+                   'reflections': [d for x in logs for d in ((x.get('log') or {}).get('reflections') or [])]}
+            for k, col in df.items():
+                if agg.get(k) and auto(col):
+                    body[col] = _bullets(agg[k])
             if not rid:
-                body.update({'日期': f'{day} 12:00:00', '当日总览': '(自动生成,叙述待补;事件见清单)'})
+                body['日期'] = f'{day} 12:00:00'
             if _upsert(sink, dl_tab, body, rid):
                 n_d += 1
     log(f'继承表:会话记录 {n_s} 行,每日日志 {n_d} 天')
