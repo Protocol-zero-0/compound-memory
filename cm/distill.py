@@ -143,7 +143,7 @@ def import_sources(cfg, rows):
     return n
 
 
-def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=False):
+def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=False, days_backfill=0):
     global BATCH
     if not llm.try_lock('distill'):
         log('另一个提炼正在跑,退出'); return 1
@@ -203,6 +203,16 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
             log(f'  ! 写共享层失败 {type(ex).__name__}: {str(ex)[:200]}')
             errors.append('sink')
 
+    if (cfg.get('sink') or '') == 'feishu' and (done or snapshot_only or days_backfill):
+        try:
+            from .sinks.feishu_logs import sync as sync_logs
+            tz = int(((cfg.get('sinks') or {}).get('feishu') or {}).get('log_tz_hours', 8))
+            today = datetime.datetime.utcnow() + datetime.timedelta(hours=tz)
+            days_set = {(today - datetime.timedelta(days=i)).strftime('%Y-%m-%d') for i in range(max(2, days_backfill or 0))}
+            sync_logs(cfg, sink, state, days_set, log)
+        except Exception as ex:
+            log(f'  ! 填会话记录/每日日志失败 {type(ex).__name__}: {str(ex)[:160]}')
+
     if not no_snapshot and (done or snapshot_only):
         try:
             text = build_snapshot(cfg, rows, done, BATCH)
@@ -231,9 +241,10 @@ def main(argv=None):
     ap.add_argument('--dry', action='store_true', help='只列要处理的 session,不调模型')
     ap.add_argument('--no-snapshot', action='store_true')
     ap.add_argument('--snapshot-only', action='store_true', help='不提炼,只用现有记忆重写快照')
+    ap.add_argument('--logs-backfill', type=int, default=0, help='飞书会话记录/每日日志往回补几天')
     a = ap.parse_args(argv)
     cfg = config.load()
-    return run(cfg, a.days, a.limit, a.dry, a.no_snapshot, a.snapshot_only)
+    return run(cfg, a.days, a.limit, a.dry, a.no_snapshot, a.snapshot_only, a.logs_backfill)
 
 
 if __name__ == '__main__':

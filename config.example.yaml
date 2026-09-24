@@ -42,6 +42,12 @@ sinks:
     base_token: ''         # 多维表格 token
     table_id: ''           # 记忆表 id(字段见 docs/sinks.md)
     snapshot_doc: ''       # 快照文档 token;留空则第一次运行时自动创建
+    # 可选:每晚确定性填两张流水表(零模型调用;手写内容不覆盖)
+    session_table: ''      # 「会话记录」表 id:每个 session 一行
+    daily_table: ''        # 「每日日志」表 id:每天一行,会话数 + 事件清单
+    meeting_base: ''       # 可选:会议表所在 Base,当天会议也进事件清单
+    meeting_table: ''
+    log_tz_hours: 8        # 按哪个时区切"一天"
 
 # ---- 额度与规模 ----
 nightly_limit: 20          # 每次运行最多处理多少个 session(防止一夜烧穿额度)
