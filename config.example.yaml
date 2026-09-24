@@ -108,3 +108,12 @@ hosts:
     inject: true           # 开局注入:写 ~/.dsh/AGENTS.md(已验证)+ 挂 hook 插件(见 docs/dsh.md)
     plugin_hook: true      # false = 只写 AGENTS.md,不动 dsh profile 的 cordis.patch.yml
     profile_dir: ''        # 留空 = 给 ~/.dsh/profiles/ 下每个 profile 都装
+  meeting:                 # 会议转写(可选):采集脚本把 <会议ID>.json + <会议ID>.txt 放到这个目录
+    enabled: auto
+    dir: ''
+    inject: false
+    text_budget: 40000     # 会议长,喂给模型的字数放宽
+    since: ''              # 这个日期(YYYY-MM-DD)以前的会议一律不读
+
+# 你在会议转写里可能用的其它名字(会议提炼时用来认出哪位说话人是你)
+user_aliases: []

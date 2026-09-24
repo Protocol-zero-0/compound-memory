@@ -33,12 +33,14 @@ def cutoff(days):
             - datetime.timedelta(days=days)).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
-def candidates(cfg, state, days, limit=None):
+def candidates(cfg, state, days, limit=None, only=None):
     """挑出"有新对话、而且新得够多值得再调一次模型"的 session。"""
     since = cutoff(days)
     recs = sources.scan_all(cfg, since)
     todo = []
     for r in recs:
+        if only and r['source'] not in only:
+            continue
         if not r.get('ts_last') or r['ts_last'] < since or r.get('n_user_turns', 0) < 2:
             continue
         key = f"{r['source']}:{r['sid']}"
@@ -84,11 +86,14 @@ def distill_session(rec, rows, cfg):
     if len(turns) < 2:
         return None, None, []
     rel = store.related(rows, query_of(rec, turns), sid=rec['sid'])
+    hc = config.host_cfg(cfg, rec['source'])
+    budget = int(hc.get('text_budget') or cfg.get('text_budget') or 14000)
     prompt = prompts.build(
-        'distill', lang, user_name=cfg.get('user_name'), src=rec['source'],
+        'distill_meeting' if rec['source'] == 'meeting' else 'distill', lang,
+        aliases='、'.join(cfg.get('user_aliases') or []) or '(无)', user_name=cfg.get('user_name'), src=rec['source'],
         title=rec.get('title') or '-', t0=(rec.get('ts_first') or '')[:16],
         t1=(rec.get('ts_last') or '')[:16], turns=len(turns),
-        text=session_text(turns, int(cfg.get('text_budget') or 14000)),
+        text=session_text(turns, budget),
         related=fmt_related(rel, lang), maxn=cfg.get('max_candidates') or 8)
     data = llm.ask_json(prompt, timeout=int(os.environ.get('CM_TIMEOUT', '420')))
     llm.log_usage('distill', 1)
@@ -145,7 +150,7 @@ def import_sources(cfg, rows):
     return n
 
 
-def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=False, days_backfill=0):
+def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=False, days_backfill=0, only=None):
     global BATCH
     if not llm.try_lock('distill'):
         log('另一个提炼正在跑,退出'); return 1
@@ -162,7 +167,7 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
     done, errors, hit_limit = 0, [], False
 
     if not snapshot_only:
-        todo = candidates(cfg, state, days, limit or None)
+        todo = candidates(cfg, state, days, limit or None, only)
         log(f'batch={BATCH} model={llm.MODEL} effort={llm.EFFORT} 待处理 session {len(todo)} 个(窗口 {days} 天)')
         if dry:
             for r in todo:
@@ -244,9 +249,10 @@ def main(argv=None):
     ap.add_argument('--no-snapshot', action='store_true')
     ap.add_argument('--snapshot-only', action='store_true', help='不提炼,只用现有记忆重写快照')
     ap.add_argument('--logs-backfill', type=int, default=0, help='飞书会话记录/每日日志往回补几天')
+    ap.add_argument('--source', action='append', help='只处理这类来源(claude/codex/dsh/meeting),可重复')
     a = ap.parse_args(argv)
     cfg = config.load()
-    return run(cfg, a.days, a.limit, a.dry, a.no_snapshot, a.snapshot_only, a.logs_backfill)
+    return run(cfg, a.days, a.limit, a.dry, a.no_snapshot, a.snapshot_only, a.logs_backfill, a.source)
 
 
 if __name__ == '__main__':
