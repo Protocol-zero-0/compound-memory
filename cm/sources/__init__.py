@@ -145,7 +145,7 @@ def load_turns(rec):
     return mod.load_turns(rec)
 
 
-from . import claude, codex, dsh          # noqa: E402
+from . import claude, codex, dsh, meetings          # noqa: E402
 
-for _m in (claude, codex, dsh):
+for _m in (claude, codex, dsh, meetings):
     register(_m)

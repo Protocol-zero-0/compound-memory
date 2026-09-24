@@ -69,8 +69,8 @@ def sync(cfg, sink, state, days, log=print):
     if st_tab:
         have = {v.get('会话ID'): rid for rid, v in _list(sink, sink.base, st_tab, ['会话ID']).items() if v.get('会话ID')}
         for key, st in state.items():
-            if key.startswith('_') or not st.get('topic') or key not in recs:
-                continue                                  # 只写本系统提炼过、有主题的
+            if key.startswith('_') or not st.get('topic') or key not in recs or key.startswith('meeting:'):
+                continue                                  # 只写本系统提炼过、有主题的会话;会议有自己的会议记录表
             r = recs[key]
             if not r.get('ts_first') or _day(r['ts_first'], tz)[0] not in days:
                 continue
@@ -96,8 +96,9 @@ def sync(cfg, sink, state, days, log=print):
         for day in sorted(days):
             ev = []
             for key, r in sorted(recs.items(), key=lambda kv: kv[1].get('ts_first') or ''):
-                if not r.get('ts_first') or r.get('n_user_turns', 0) < 2 or _day(r['ts_first'], tz)[0] != day:
-                    continue
+                if not r.get('ts_first') or r.get('n_user_turns', 0) < 2 or _day(r['ts_first'], tz)[0] != day \
+                        or r['source'] == 'meeting':
+                    continue                              # 会议走下面的 [会议] 行
                 topic = (state.get(key) or {}).get('topic') or r.get('title') or '(未提炼)'
                 ev.append(f"[{LABEL.get(r['source'], r['source'])}] {topic}({sources.short(r['sid'])},{r['n_user_turns']}轮)")
             ev += [f'[会议] {m}' for m in meets.get(day, [])]
