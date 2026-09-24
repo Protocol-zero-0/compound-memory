@@ -117,6 +117,8 @@ def distill_session(rec, rows, cfg):
             'share_reason': c.get('share_reason') or '',
             'batch': BATCH, 'remote': {},
         })
+    rec['_log'] = {k: [store.scrub(str(x)) for x in (((data.get('log') or {}).get(k)) or []) if str(x).strip()]
+                   for k in ('points', 'next', 'decisions', 'reflections')}
     return data.get('topic'), data.get('summary'), out
 
 
@@ -186,7 +188,7 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
                 by_id[m['id']] = m
             state[f"{r['source']}:{r['sid']}"] = {
                 'ts_last': r['ts_last'], 'turns': r.get('n_user_turns'), 'batch': BATCH,
-                'n': len(new), 'topic': topic, 'summary': summary}
+                'n': len(new), 'topic': topic, 'summary': summary, 'log': r.get('_log') or {}}
             store.save(rows)
             store.save_state(state)
             done += 1

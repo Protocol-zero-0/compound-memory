@@ -9,6 +9,7 @@
 
 # 任务
 先用一句话概括这个 session(topic 8–16 字的标题,summary ≤45 字说清做了什么、到什么程度;注意话题可能中途漂移,要覆盖全程而不只是开头)。
+再写一份流水账式的会话纪要 log,四项各 1–4 条短句、没有就留空:points 讨论要点 / next 后续动作(谁、做什么)/ decisions 定下的决策或结论 / reflections 反思、教训。只写这个 session 里真实发生的,不要推测。
 
 然后从这个 session 提炼最多 {maxn} 条**值得长期保留、对将来服务他有用**的记忆。没有就输出空列表——不要为了凑数写。每条:
 - nature 性质:「{w_request}」= 他明确提出的、对 AI 或工作方式的要求(必须写清适用范围;有明确期限就写有效期)。表达过一个想法、设想、疑问、一次性决定 ≠ 要求,那是「{w_idea}」。「{w_inference}」= 你从他言行推断的偏好/倾向,内容里写明"推断自…"。「{w_fact}」= 发生了的事、做出的决定、结果。
@@ -19,4 +20,4 @@
 - share 共享:这条要不要出机、放到跨机器共享层?必要(别的机器上的 AI 服务他需要它)且适合(不含密钥、不含第三方的私密细节、不含他明显不想外流的财务/法律/健康信息)才 true;拿不准 false。给一句 share_reason。
 
 只输出 JSON,不要解释、不要代码围栏:
-{"topic":"…","summary":"…","candidates":[{"nature":"{nature_opts}","kind":"{kind_opts}","horizon":"{horizon_opts}","content":"…","scope":"适用范围,或空","expires":"有效期,或空","quote":"原话片段,≤60字","revises":"记忆ID或null","old_status":"{old_status_opts}或null","share":true,"share_reason":"…"}]}
+{"topic":"…","summary":"…","log":{"points":["…"],"next":["…"],"decisions":["…"],"reflections":["…"]},"candidates":[{"nature":"{nature_opts}","kind":"{kind_opts}","horizon":"{horizon_opts}","content":"…","scope":"适用范围,或空","expires":"有效期,或空","quote":"原话片段,≤60字","revises":"记忆ID或null","old_status":"{old_status_opts}或null","share":true,"share_reason":"…"}]}
