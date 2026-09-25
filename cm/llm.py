@@ -9,7 +9,7 @@
   4. 提示词走 stdin,避开 argv 长度上限
   5. 每次真调了模型就记一行 usage.log,方便日后核对"是不是在偷偷烧"
 """
-import fcntl, json, os, subprocess, time, urllib.request, urllib.error
+import fcntl, json, os, shutil, subprocess, time, urllib.request, urllib.error
 from . import config
 
 cfg = config.load()
@@ -41,9 +41,29 @@ def _looks_like_limit(text):
     return any(m in t for m in LIMIT_MARKERS)
 
 
+class ModelUnavailable(Exception):
+    """模型根本调不起来(比如找不到 claude 命令)。这时整轮该停,而不是逐个会话失败下去。"""
+
+
+def claude_bin():
+    """cron 的 PATH 很短(通常只有 /usr/bin:/bin),靠 PATH 找 claude 会静默失败(实跑踩过)。
+    所以先看配置,再看 PATH,再看几个常见安装位置。"""
+    c = ((cfg.get('llm') or {}).get('command') or 'claude')
+    if os.path.isabs(c) and os.access(c, os.X_OK):
+        return c
+    found = shutil.which(c)
+    if found:
+        return found
+    for p in ('~/.local/bin/claude', '~/.claude/local/claude', '/usr/local/bin/claude', '/opt/homebrew/bin/claude'):
+        p = os.path.expanduser(p)
+        if os.access(p, os.X_OK):
+            return p
+    raise ModelUnavailable(f'找不到 claude 命令(PATH={os.environ.get("PATH")});在 config.yaml 的 llm.command 写绝对路径')
+
+
 def _ask_claude_cli(prompt, timeout, model=None, effort=None):
     lc = cfg.get('llm') or {}
-    cmd = [lc.get('command') or 'claude', '-p', '--model', model or MODEL,
+    cmd = [claude_bin(), '-p', '--model', model or MODEL,
            '--effort', effort or EFFORT, *(lc.get('claude_flags') or [])]
     r = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
                        timeout=timeout, cwd=HOME)

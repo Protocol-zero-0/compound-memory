@@ -9,7 +9,7 @@
    是可以被后来的对话修正的理解。
 3. **额度纪律。** 每次运行有上限;遇到额度到顶立刻停,并且**不推进水位线**,下次接着跑。
 """
-import argparse, datetime, json, os, socket, time
+import argparse, datetime, json, os, socket, subprocess, time
 
 from . import config, llm, prompts, store, sinks, lexicon as L
 from . import sources
@@ -26,6 +26,17 @@ def log(msg):
     os.makedirs(config.HOME, exist_ok=True)
     with open(LOG, 'a', encoding='utf-8') as f:
         f.write(line + '\n')
+
+
+def notify(cfg, title, body):
+    """一轮下来零产出且有失败时叫人。cron 里 exit 0、日志里有错,没人看就等于没发生。"""
+    cmd = config.expand(cfg.get('notify_command') or '')
+    if not cmd:
+        return
+    try:
+        subprocess.run([cmd, title, body], timeout=120, capture_output=True)
+    except Exception as ex:
+        log(f'  ! 通知没发出去 {type(ex).__name__}')
 
 
 def cutoff(days):
@@ -181,6 +192,10 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
                 log(f'  !! 额度到顶,本次停止,未处理的留到下次(水位线未动):{str(ex)[:120]}')
                 hit_limit = True
                 break
+            except llm.ModelUnavailable as ex:
+                log(f'  !! 模型调不起来,整轮停止(水位线未动):{ex}')
+                errors.append('model-unavailable')
+                break
             except Exception as ex:
                 log(f"  ! {r['source']}:{sources.short(r['sid'])} 提炼失败 {type(ex).__name__}: {str(ex)[:160]}")
                 errors.append(r['sid'])
@@ -232,6 +247,8 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
             log(f'  ! 快照失败 {type(ex).__name__}: {str(ex)[:200]}')
             errors.append('snapshot')
 
+    if errors and not done:
+        notify(cfg, '复利记忆:今晚提炼一条都没产出', f'{len(errors)} 处失败,例如 {errors[0]};详见 {LOG}')
     left = candidates(cfg, state, days)
     log(f'覆盖核对:窗口内仍未处理到最新的 session {len(left)} 个')
     if not (dry or snapshot_only):

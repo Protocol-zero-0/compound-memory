@@ -3,6 +3,13 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 REPO="$(dirname "$HERE")"
+# cron 的 PATH 通常只有 /usr/bin:/bin。claude、lark-cli、gh 这些多半装在用户目录里,
+# 不补上就会"每晚照常运行、日志里一排找不到命令"(实跑踩过)。安装时的 PATH 也记在这里一份。
+for d in "$HOME/.local/bin" "$HOME/.npm-global/bin" "$HOME/.claude/local" "/home/linuxbrew/.linuxbrew/bin" \
+         "/opt/homebrew/bin" "/usr/local/bin" ${CM_EXTRA_PATH:-}; do
+  case ":$PATH:" in *":$d:"*) ;; *) [ -d "$d" ] && PATH="$PATH:$d" ;; esac
+done
+export PATH
 PY="${CM_PYTHON:-}"
 if [ -z "$PY" ]; then
   for c in python3.14 python3.13 python3.12 python3.11 python3.10 python3; do
