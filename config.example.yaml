@@ -48,6 +48,8 @@ sinks:
     meeting_base: ''       # 可选:会议表所在 Base,当天会议也进事件清单
     meeting_table: ''
     log_tz_hours: 8        # 按哪个时区切"一天"
+    meeting_tables: []     # 提炼完的会议写回各自的会议表并置「已入库」,例:
+    # - {profile: work, base: <token>, table: <id>, fields: {主题: topic, 要点摘要: summary+points, 关键决策: decisions, 待办事项: next}}
 
 # ---- 额度与规模 ----
 nightly_limit: 20          # 每次运行最多处理多少个 session(防止一夜烧穿额度)
@@ -112,12 +114,14 @@ hosts:
     inject: true           # 开局注入:写 ~/.dsh/AGENTS.md(已验证)+ 挂 hook 插件(见 docs/dsh.md)
     plugin_hook: true      # false = 只写 AGENTS.md,不动 dsh profile 的 cordis.patch.yml
     profile_dir: ''        # 留空 = 给 ~/.dsh/profiles/ 下每个 profile 都装
-  meeting:                 # 会议转写(可选):采集脚本把 <会议ID>.json + <会议ID>.txt 放到这个目录
+  meeting:                 # 会议转写(可选):采集脚本把 <会议ID>.json + <会议ID>.txt 放到目录里
     enabled: auto
-    dir: ''
     inject: false
     text_budget: 40000     # 会议长,喂给模型的字数放宽
-    since: ''              # 这个日期(YYYY-MM-DD)以前的会议一律不读
+    profiles: []           # 每个会议账号一项,互相独立,例:
+    # - {name: work,    dir: ~/meetings/work,    since: '2026-01-01', domain: work,     prompt: distill_meeting}
+    # - {name: personal, dir: ~/meetings/personal,                    domain: personal, prompt: <你自己的提示词>}
+    # domain: personal 的记忆只留本机、不进快照、不进工作日志、不参与工作话题
 
 # 你在会议转写里可能用的其它名字(会议提炼时用来认出哪位说话人是你)
 user_aliases: []
