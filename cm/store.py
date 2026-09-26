@@ -69,7 +69,8 @@ def live(rows):
 
 
 def shared(rows):
-    return [m for m in live(rows) if m.get('share')]
+    # 个人生活类(domain=personal)从不出机、不进快照
+    return [m for m in live(rows) if m.get('share') and m.get('domain', 'work') != 'personal']
 
 
 # ---------- 检索 ----------
@@ -120,9 +121,10 @@ def _wmap(queries):
     return wmap, (sum(wmap.values()) or 1.0)
 
 
-def related(rows, query, sid=None, k=25):
-    """给提炼用的"可能要被这次修订的旧记忆"。同 session 的加权重,其余按相似度。"""
-    pool = live(rows)
+def related(rows, query, sid=None, k=25, domain='work'):
+    """给提炼用的"可能要被这次修订的旧记忆"。同 session 的加权重,其余按相似度。
+    只在同一领域里找:工作会话看不到个人生活类记录,个人生活类也不会去修订工作记忆。"""
+    pool = [m for m in live(rows) if m.get('domain', 'work') == domain]
     wmap, total = _wmap([(query, 1.0)])
     scored = []
     for m in pool:

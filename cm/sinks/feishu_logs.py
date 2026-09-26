@@ -111,7 +111,8 @@ def sync(cfg, sink, state, days, log=print):
             if auto('事件清单'):
                 body['事件清单'] = '\n'.join(ev)         # 人写的内容一律不覆盖
             logs = [(state.get(k) or {}) for k, r in recs.items()
-                    if r.get('ts_first') and _day(r['ts_first'], tz)[0] == day and (state.get(k) or {}).get('topic')]
+                    if r.get('ts_first') and _day(r['ts_first'], tz)[0] == day and (state.get(k) or {}).get('topic')
+                    and (state.get(k) or {}).get('domain', 'work') != 'personal']   # 个人生活不进工作日志
             agg = {'overview': [f"{x['topic']}:{x.get('summary') or ''}" for x in logs],
                    'decisions': [d for x in logs for d in ((x.get('log') or {}).get('decisions') or [])],
                    'reflections': [d for x in logs for d in ((x.get('log') or {}).get('reflections') or [])]}

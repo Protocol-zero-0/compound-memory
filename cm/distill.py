@@ -96,11 +96,12 @@ def distill_session(rec, rows, cfg):
     turns = sources.load_turns(rec)
     if len(turns) < 2:
         return None, None, []
-    rel = store.related(rows, query_of(rec, turns), sid=rec['sid'])
+    domain = rec.get('domain') or 'work'
+    rel = store.related(rows, query_of(rec, turns), sid=rec['sid'], domain=domain)
     hc = config.host_cfg(cfg, rec['source'])
     budget = int(hc.get('text_budget') or cfg.get('text_budget') or 14000)
     prompt = prompts.build(
-        'distill_meeting' if rec['source'] == 'meeting' else 'distill', lang,
+        (rec.get('prompt') or 'distill_meeting') if rec['source'] == 'meeting' else 'distill', lang,
         aliases='、'.join(cfg.get('user_aliases') or []) or '(无)', user_name=cfg.get('user_name'), src=rec['source'],
         title=rec.get('title') or '-', t0=(rec.get('ts_first') or '')[:16],
         t1=(rec.get('ts_last') or '')[:16], turns=len(turns),
@@ -129,12 +130,13 @@ def distill_session(rec, rows, cfg):
             'revises': c.get('revises') or None,
             'old_status': L.canon(c.get('old_status'), ('revised', 'overturned', 'closed'), None)
                           if c.get('old_status') else None,
-            'share': bool(c.get('share')),
+            'share': bool(c.get('share')) and domain != 'personal',   # 个人生活只留本机
+            'domain': domain,
             'share_reason': c.get('share_reason') or '',
             'batch': BATCH, 'remote': {},
         })
-    rec['_log'] = {k: [store.scrub(str(x)) for x in (((data.get('log') or {}).get(k)) or []) if str(x).strip()]
-                   for k in ('points', 'next', 'decisions', 'reflections')}
+    rec['_log'] = {k: [store.scrub(str(x)) for x in (v or []) if str(x).strip()]
+                   for k, v in (data.get('log') or {}).items() if isinstance(v, list)}
     return data.get('topic'), data.get('summary'), out
 
 
@@ -208,7 +210,8 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
                 by_id[m['id']] = m
             state[f"{r['source']}:{r['sid']}"] = {
                 'ts_last': r['ts_last'], 'turns': r.get('n_user_turns'), 'batch': BATCH,
-                'n': len(new), 'topic': topic, 'summary': summary, 'log': r.get('_log') or {}}
+                'n': len(new), 'topic': topic, 'summary': summary, 'log': r.get('_log') or {},
+                'domain': r.get('domain') or 'work', **({'profile': r['profile']} if r.get('profile') else {})}
             store.save(rows)
             store.save_state(state)
             done += 1
@@ -224,6 +227,13 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
         except Exception as ex:
             log(f'  ! 写共享层失败 {type(ex).__name__}: {str(ex)[:200]}')
             errors.append('sink')
+
+    if (cfg.get('sink') or '') == 'feishu':
+        try:
+            from .sinks.feishu_meetings import sync as sync_meetings
+            sync_meetings(cfg, sink, state, log)
+        except Exception as ex:
+            log(f'  ! 写会议表失败 {type(ex).__name__}: {str(ex)[:160]}')
 
     if (cfg.get('sink') or '') == 'feishu' and (done or snapshot_only or days_backfill):
         try:
