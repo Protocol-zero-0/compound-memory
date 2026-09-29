@@ -44,12 +44,15 @@ sinks:
     snapshot_doc: ''       # 快照文档 token;留空则第一次运行时自动创建
     # 可选:每晚确定性填两张流水表(零模型调用;手写内容不覆盖)
     session_table: ''      # 「会话记录」表 id:每个 session 一行
-    daily_table: ''        # 「每日日志」表 id:每天一行,会话数 + 事件清单
-    meeting_base: ''       # 可选:会议表所在 Base,当天会议也进事件清单
+    daily_table: ''        # 「每日日志」表 id:每天一行,会话数 + 事件列表
+    meeting_base: ''       # 可选:会议表所在 Base,当天会议也进事件列表
     meeting_table: ''
     log_tz_hours: 8        # 按哪个时区切"一天"
+    # 两张流水表的栏目名,不写就用通用默认值(要点/后续/决策/反思,总览/决策/反思,日期/会话数/事件)。例:
+    # session_fields: {points: 讨论记录, next: 下一步}
+    # daily_core: {events: 当天事件}
     meeting_tables: []     # 提炼完的会议写回各自的会议表并置「已入库」,例:
-    # - {profile: work, base: <token>, table: <id>, fields: {主题: topic, 要点摘要: summary+points, 关键决策: decisions, 待办事项: next}}
+    # - {profile: work, base: <token>, table: <id>, fields: {标题: topic, 摘要: summary+points, 决策: decisions, 待办: next}}
 
 # ---- 额度与规模 ----
 nightly_limit: 20          # 每次运行最多处理多少个 session(防止一夜烧穿额度)

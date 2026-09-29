@@ -196,11 +196,11 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
                 break
             except llm.ModelUnavailable as ex:
                 log(f'  !! 模型调不起来,整轮停止(水位线未动):{ex}')
-                errors.append('model-unavailable')
+                errors.append(f'模型调不起来:{str(ex)[:160]}')
                 break
             except Exception as ex:
                 log(f"  ! {r['source']}:{sources.short(r['sid'])} 提炼失败 {type(ex).__name__}: {str(ex)[:160]}")
-                errors.append(r['sid'])
+                errors.append(f"{type(ex).__name__}: {str(ex)[:160]}")
                 continue
             for m in new:
                 old = by_id.get(m['revises']) if m.get('revises') else None
@@ -258,7 +258,7 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
             errors.append('snapshot')
 
     if errors and not done:
-        notify(cfg, '复利记忆:今晚提炼一条都没产出', f'{len(errors)} 处失败,例如 {errors[0]};详见 {LOG}')
+        notify(cfg, '复利记忆:今晚提炼一条都没产出', f'{len(errors)} 处失败。原因:{errors[0]}\n详见 {LOG}')
     left = candidates(cfg, state, days)
     log(f'覆盖核对:窗口内仍未处理到最新的 session {len(left)} 个')
     if not (dry or snapshot_only):

@@ -41,6 +41,10 @@ def _looks_like_limit(text):
     return any(m in t for m in LIMIT_MARKERS)
 
 
+ACCOUNT_MARKERS = ('organization has been disabled', 'not logged in', 'please run /login',
+                   'invalid api key', 'authentication_error', 'permission_error', 'account has been')
+
+
 class ModelUnavailable(Exception):
     """模型根本调不起来(比如找不到 claude 命令)。这时整轮该停,而不是逐个会话失败下去。"""
 
@@ -72,6 +76,8 @@ def _ask_claude_cli(prompt, timeout, model=None, effort=None):
         err = ((r.stderr or '') + out)[:400]
         if _looks_like_limit(err):
             raise UsageLimit(err)
+        if any(m in err.lower() for m in ACCOUNT_MARKERS):
+            raise ModelUnavailable(err)          # 账号停用 / 未登录:再试多少个会话都一样
         raise RuntimeError(f'claude -p 失败 rc={r.returncode}: {err}')
     if _looks_like_limit(out) and len(out) < 300:
         raise UsageLimit(out)
