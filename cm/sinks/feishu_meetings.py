@@ -9,7 +9,7 @@
   - profile: work
     base: <Base token>
     table: <表 id>
-    fields: {主题: topic, 要点摘要: summary+points, 关键决策: decisions, 待办事项: next, 观察条数: n}
+    fields: {标题: topic, 摘要: summary+points, 决策: decisions, 待办: next, 记忆条数: n}   # 左边是你表里的栏目名
 字段值的来源:topic / summary / n,或者纪要里的某一项(points、decisions、corrections…),用 + 拼接。
 """
 import json

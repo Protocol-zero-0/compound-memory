@@ -3,12 +3,13 @@
 
 可选功能,配置了才启用(sinks.feishu 下):
     session_table: 会话记录表 id    —— 每个 session 一行,按「会话ID」幂等
-    daily_table:   每日日志表 id    —— 每天一行:会话数 + 事件清单(会话 + 会议)
-    meeting_base / meeting_table:   会议表(可选),当天的会议也进事件清单
+    daily_table:   每日日志表 id    —— 每天一行:会话数 + 事件列表(会话 + 会议)
+    meeting_base / meeting_table:   会议表(可选),当天的会议也进事件列表
+    session_fields / daily_fields / daily_core:栏目名,不写就用下面的通用默认值
     log_tz_hours:  按哪个时区切"一天"(默认 8)
 
 主题和概况来自提炼时顺手生成的那一句话(存在 state 里),不额外调模型。
-**手写的内容不碰**:每日日志里人写的事件清单保留原样,只更新会话数;
+**手写的内容不碰**:每日日志里人写的事件列表保留原样,只更新会话数;
 只有空白行、或原本就是程序生成的清单(以 [Claude]/[Codex]/[dsh]/[会议] 开头)才重写。
 """
 import datetime, json
@@ -18,8 +19,11 @@ from .feishu import _one
 
 AUTO_PREFIX = ('[Claude]', '[Codex]', '[dsh]', '[会议]', '·')
 # 纪要四项 → 表里的栏目名(config 里 sinks.feishu.session_fields / daily_fields 可改)
-SESSION_FIELDS = {'points': '讨论要点', 'next': '后续动作', 'decisions': '价值信息·决策', 'reflections': '反思·结论'}
-DAILY_FIELDS = {'overview': '当日总览', 'decisions': '关键决策·结论', 'reflections': '反思'}
+# 栏目名的通用默认值。你的表叫法不同,就在本机 config.yaml 里改(session_fields / daily_fields / daily_core),
+# 不要改这里 —— 这里是给所有人用的默认值,不该带任何一个人的表结构。
+SESSION_FIELDS = {'points': '要点', 'next': '后续', 'decisions': '决策', 'reflections': '反思'}
+DAILY_FIELDS = {'overview': '总览', 'decisions': '决策', 'reflections': '反思'}
+DAILY_CORE = {'date': '日期', 'count': '会话数', 'events': '事件'}
 
 
 def _bullets(items):
@@ -90,9 +94,10 @@ def sync(cfg, sink, state, days, log=print):
             for v in _list(sink, conf['meeting_base'], conf['meeting_table'], ['日期', '主题']).values():
                 meets.setdefault(str(v.get('日期') or '')[:10], []).append(v.get('主题'))
         df = {**DAILY_FIELDS, **(conf.get('daily_fields') or {})}
+        dc = {**DAILY_CORE, **(conf.get('daily_core') or {})}
         daily = {}
-        for rid, v in _list(sink, sink.base, dl_tab, ['日期', '事件清单', *df.values()]).items():
-            daily.setdefault(str(v.get('日期') or '')[:10], (rid, v))
+        for rid, v in _list(sink, sink.base, dl_tab, [dc['date'], dc['events'], *df.values()]).items():
+            daily.setdefault(str(v.get(dc['date']) or '')[:10], (rid, v))
         for day in sorted(days):
             ev = []
             for key, r in sorted(recs.items(), key=lambda kv: kv[1].get('ts_first') or ''):
@@ -107,9 +112,9 @@ def sync(cfg, sink, state, days, log=print):
             rid, old = daily.get(day, (None, {}))
             auto = lambda col: not str(old.get(col) or '').strip() or str(old.get(col)).lstrip().startswith(AUTO_PREFIX) \
                 or str(old.get(col)).startswith('(自动生成')
-            body = {'会话数': len(ev)}
-            if auto('事件清单'):
-                body['事件清单'] = '\n'.join(ev)         # 人写的内容一律不覆盖
+            body = {dc['count']: len(ev)}
+            if auto(dc['events']):
+                body[dc['events']] = '\n'.join(ev)      # 人写的内容一律不覆盖
             logs = [(state.get(k) or {}) for k, r in recs.items()
                     if r.get('ts_first') and _day(r['ts_first'], tz)[0] == day and (state.get(k) or {}).get('topic')
                     and (state.get(k) or {}).get('domain', 'work') != 'personal']   # 个人生活不进工作日志
@@ -120,7 +125,7 @@ def sync(cfg, sink, state, days, log=print):
                 if agg.get(k) and auto(col):
                     body[col] = _bullets(agg[k])
             if not rid:
-                body['日期'] = f'{day} 12:00:00'
+                body[dc['date']] = f'{day} 12:00:00'
             if _upsert(sink, dl_tab, body, rid):
                 n_d += 1
     log(f'继承表:会话记录 {n_s} 行,每日日志 {n_d} 天')
