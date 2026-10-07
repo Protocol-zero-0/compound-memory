@@ -2,13 +2,14 @@
 
 # 🧠 compound-memory
 
-**You just work. The AI gets better at knowing you.**
+**Tired of re-introducing yourself every new chat? Let the AI remember.**
 
-A background process that reads your own transcripts every night, distills them into a
-long-term memory *about you*, and hands it to your next session — on any machine,
-in any harness, with any model.
+A background process that turns your conversations with AI into a memory *about you*,
+every night. Your next session — new machine, new tool, new model, doesn't matter —
+starts already knowing you.
 
-[中文](README.md) · [English](README_EN.md) · [Retrieval, measured](docs/recall.md) · [Push privacy gate](docs/privacy-gate.md) · [dsh session format](docs/dsh.md) · [Shared layer](docs/sinks.md)
+[中文](README.md) · [English](README_EN.md) · [Design notes](docs/design.md) (Chinese) ·
+[Retrieval](docs/recall.md) (Chinese) · [Push privacy gate](docs/privacy-gate.md) (Chinese)
 
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![harness](https://img.shields.io/badge/harness-Claude%20Code%20%7C%20Codex%20%7C%20dsh-green)
@@ -19,32 +20,45 @@ in any harness, with any model.
 
 ---
 
-## What it does
+## What it looks like (fictional example below, not real user data)
 
-1. **Reads the transcripts. You log nothing.** Every night it scans this machine's session
-   files and distills, session by session, incrementally. You never have to say "remember this".
-2. **Injects at session start.** A new session opens with the snapshot already in context:
-   your standing preferences, what you have explicitly asked for, recent decisions, and
-   what is still open. No re-explaining.
-3. **Searches on demand.** `cm recall "pricing"` pulls the relevant memories with their
-   sources. The snapshot stays short on purpose. Every retrieval choice is
-   [measured, not asserted](docs/recall.md) — and you get the same ruler: `cm eval`.
-4. **Switching tools doesn't lose memory.** Claude Code, Codex and DeepSeek Harness share
-   one memory and all three get the injection.
-5. **Memories get revised, not piled up.** Change your mind and the old entry is marked
-   *overturned* and drops out of the snapshot; a finished thread is *closed*. Adding to or
-   confirming a memory never touches it (easy to get wrong — see [Revision semantics](#revision-semantics)).
-6. **Transcripts never leave the machine.** Only entries individually judged both *necessary*
-   and *appropriate* to share go out, after a secret-pattern scrub. The default shared layer
-   is a local directory — no account needed.
-7. **Budget discipline.** Background calls go through one slim entry point (background
-   overhead down from ~43k to ~11k tokens per call), the model is named explicitly, each
-   run has a session cap, and hitting a usage limit stops the run *without* advancing the
-   watermark.
+At the start of a new session, this shows up in context automatically:
 
-> In one line: **your raw transcripts are the asset; the memory is a cache you can always
-> recompute.** When models get better, re-distill from the transcripts — don't get locked
-> into today's distillation.
+```
+<compound-memory-snapshot source="shared">
+# Alex · snapshot
+generated 2026-09-20 04:30 · 86 live shared memories
+
+## A Long-horizon
+### What he has explicitly asked for
+- Code review: correctness and simplification only, don't expand scope (09-02)
+- Weekly reports: plain language, no consulting jargon (08-14)
+
+## B Short-horizon
+### Open threads
+- Wait for the supplier to confirm delivery date before setting launch date (09-18)
+</compound-memory-snapshot>
+```
+
+And you can search it anytime, with sources:
+
+```bash
+$ cm recall "supplier"
+【memory】
+- [open-thread, 09-18] Wait for the supplier to confirm delivery date before setting launch date
+    from: claude:3267ab25 · launch timing discussion
+```
+
+## Why it's worth using
+
+- **You do nothing.** Reads transcripts, distills, writes the snapshot — every night, automatically.
+- **Works across tools and machines.** Claude Code, Codex and DeepSeek Harness share one memory.
+- **Gets updated, doesn't pile up.** Change your mind and the old memory expires — it's not an endless log.
+- **Transcripts never leave the machine.** Only memories judged "necessary and appropriate to share" go out, scrubbed of secrets first.
+- **Budget discipline.** Slim calls, a nightly cap, stops cold at the limit instead of quietly burning money.
+
+Design rationale (why per-session not per-day, why not file mtime, how revisions are decided,
+full architecture diagram) → [docs/design.md](docs/design.md) (Chinese; translate as needed).
 
 ---
 
@@ -52,17 +66,12 @@ in any harness, with any model.
 
 - **It reads all of your session logs.** That is its only input. If that's not OK, don't install it.
 - **It spends model budget.** Up to 20 sessions per night by default, one call each.
-  Run `cm distill --dry` first to see how many that is.
-- **Use a private repo for the shared layer.** With `sink: github`, the contents are about you.
-- **Session-start injection edits a few files**: `~/.claude/settings.json`,
-  `~/.codex/AGENTS.md`, `~/.dsh/AGENTS.md`, and each dsh profile's `cordis.patch.yml`.
-  Every one is backed up to `~/.compound-memory/backups/` first, every edit is marked,
-  and `cm uninstall` removes exactly what it added.
-- **The default model is Claude Opus.** In a side-by-side run, Sonnet missed about a quarter
-  of the entries and collapsed several distinct requests into one. Downgrade if you want —
-  just know what you're trading.
-- **An inference is not a rule.** What the model writes are dated observations. Only things
-  *you said explicitly* are tagged as requests, with a scope. Don't expect it to legislate for you.
+  Run `cm distill --dry` first.
+- **Session-start injection edits a few files** (`~/.claude/settings.json`, `~/.codex/AGENTS.md`, etc.),
+  each backed up and marked; `cm uninstall` removes exactly what it added.
+- **The default model is Claude Opus.** Sonnet missed about a quarter of the entries in testing.
+  Downgrade if you want, just know the trade-off.
+- **An inference is not a rule.** Only things you said explicitly are tagged as requests.
 
 ---
 
@@ -83,8 +92,8 @@ cm uninstall                               # remove cleanly; --purge also delete
 ```
 
 One prerequisite: **a model you can call.** By default it uses the `claude` CLI you're
-already logged into (zero extra setup). Otherwise set `llm.backend: openai` in
-`config.yaml` with `base_url` and `api_key_env` — any OpenAI-compatible endpoint works.
+already logged into. Otherwise set `llm.backend: openai` with `base_url` and `api_key_env` —
+any OpenAI-compatible endpoint works.
 
 ---
 
@@ -94,76 +103,9 @@ already logged into (zero extra setup). Otherwise set `llm.backend: openai` in
 |---|---|---|---|
 | **Claude Code** | `~/.claude/projects/**/*.jsonl` | `SessionStart` hook in `settings.json` | ✅ verified |
 | **Codex CLI** | `~/.codex/sessions/**/rollout-*.jsonl` | appended block in `~/.codex/AGENTS.md` | ✅ verified |
-| **DeepSeek Harness (dsh)** | `~/.dsh/sessions/**/session*.jsonl.zstd` (zstd) | a block in `~/.dsh/AGENTS.md` **plus** the `dsh-hooks-claude-code` plugin | ✅ reading verified · ✅ AGENTS.md injection verified · ⚠️ the plugin bridge never fired on the version tested — see [docs/dsh.md](docs/dsh.md) |
-
-dsh's session format is undocumented publicly — it was reverse-engineered on a live install
-(compressed, two file generations side by side, `user/message` events that also carry
-plugin-injected context). Details and how to verify it yourself: [docs/dsh.md](docs/dsh.md).
+| **DeepSeek Harness (dsh)** | `~/.dsh/sessions/**/*.jsonl.zstd` | `~/.dsh/AGENTS.md` block **+** hook plugin | ✅ reading verified · ⚠️ plugin bridge: see [docs/dsh.md](docs/dsh.md) |
 
 Adding a harness = one file, `cm/sources/<name>.py`, exposing `available / scan / load_turns`.
-
----
-
-## How it works
-
-```
-  you, working normally
-      │
-      ▼
- ┌──────────────────────────────────────────────┐
- │  raw transcripts (session files)             │   ← the asset. never leaves the machine.
- │  Claude Code · Codex · dsh                   │
- └──────────────────────────────────────────────┘
-      │  nightly, incremental, per session
-      │  watermark = timestamp of the last message in that session (NOT file mtime)
-      │  fewer than max(3 turns, 25%) new? let it accumulate — not worth a call
-      ▼
- ┌──────────────────────────────────────────────┐
- │  distill: the whole session + the memories    │   one model call
- │  it produced before, understood together      │
- │  nature request/idea/inference/fact · kind ·  │
- │  horizon · revised/overturned/closed          │
- └──────────────────────────────────────────────┘
-      │
-      ├──────────────▶ local, complete   observations.jsonl
-      │
-      │  per-entry share judgment + secret-pattern scrub
-      ▼
- ┌──────────────────────────────────────────────┐
- │  shared layer:  local dir / private git / Lark│   ← memories leave, transcripts don't
- │  + the snapshot (4 sections, ≤3200 chars)     │
- └──────────────────────────────────────────────┘
-      │
-      ├── at session start: SessionStart hook injects the snapshot
-      └── during work:      cm recall "topic"   (with sources)
-```
-
-### Why per session, not per day
-
-A day boundary splits an overnight session in half, can't absorb late data, and can't
-resume. Per session with a watermark: incremental, resumable, late data lands automatically,
-and an interrupted run picks up where it stopped.
-
-### Why "last message timestamp" and not file mtime
-
-A live session process rewrites its own metadata, so mtime moves while the content doesn't.
-Judging "is there anything new" by mtime means re-processing unchanged sessions every hour —
-quietly burning budget the whole time.
-
-### Revision semantics
-
-The easiest part to get wrong. **Only a replacement touches the old memory:**
-
-| Situation | Old memory |
-|---|---|
-| A more accurate or newer statement of the same thing | marked `revised`, drops out of the snapshot |
-| He explicitly changed his mind; this contradicts it | marked `overturned` |
-| It was an open thread and this finishes or cancels it | marked `closed` |
-| **Adding to, extending, relating, re-confirming** | **untouched, stays live** |
-
-That last row was learned the hard way: an early version treated "adds to" as "replaces"
-and closed a whole batch of still-valid memories in one run. The prompt now spells out all four cases and
-states that setting the flag makes the old entry disappear, so when in doubt, don't.
 
 ---
 
@@ -173,94 +115,60 @@ Lives in `~/.compound-memory/config.yaml` (copied from `config.example.yaml` at 
 
 | Key | Default | Meaning |
 |---|---|---|
-| `user_name` | asked at install | who the memory is about; the `{user_name}` in the prompts |
-| `language` | `zh` | `zh` / `en` — language of the prompts and the snapshot |
-| `model` | `opus` | model used for distillation. An alias tracks the latest release; write a full ID to pin one |
-| `effort` | `high` | reasoning effort (`claude-cli` backend only) |
-| `llm.backend` | `claude-cli` | `claude-cli` (the CLI you're logged into) or `openai` |
-| `llm.claude_flags` | see example | the slim entry point; break these and overhead multiplies |
-| `sink` | `local` | shared layer: `local` / `github` / `feishu` (run `cm sink-init` once for the latter two) |
+| `user_name` | asked at install | who the memory is about |
+| `language` | `zh` | `zh` / `en` |
+| `model` / `effort` | `opus` / `high` | model used for distillation (alias, tracks latest) |
+| `llm.backend` | `claude-cli` | or `openai` (any compatible endpoint) |
+| `sink` | `local` | shared layer: `local` / `github` / `feishu` |
 | `nightly_limit` | `20` | max sessions processed per run |
 | `window_days` | `7` | only sessions with new activity in this window |
-| `max_candidates` | `8` | max memories extracted per session |
-| `text_budget` | `14000` | characters of a session fed to the model (first 40% + last 60%) |
-| `snapshot_max_chars` | `3200` | hard cap on the snapshot body; over it, it is compressed |
+| `snapshot_max_chars` | `3200` | hard cap on the snapshot body |
 | `cron` | `30 4 * * *` | when the nightly run fires |
-| `baseline_file` | empty | a local rules file copied verbatim into the snapshot's last section |
-| `hosts.<name>.enabled` | `auto` | `auto` = use it if it's installed |
-| `hosts.<name>.inject` | `true` | whether to install session-start injection for it |
+| `hosts.<name>.enabled/inject` | `auto` / `true` | whether to inject for this harness |
 
 The prompts are plain files under `prompts/` — **the thing you should most want to tune**.
-To edit them while keeping the originals, copy them to `~/.compound-memory/prompts/`,
-which takes precedence.
-
-Before you change them, run `cm eval --n 24` to freeze a question set, then
-`cm eval --set <file>` afterwards to re-run the same questions — tuning without a ruler
-is fooling yourself. Retrieval ablations and conclusions: [docs/recall.md](docs/recall.md).
+Copy them to `~/.compound-memory/prompts/` to edit while keeping the originals. Before
+tuning, run `cm eval --n 24` to freeze a question set; compare with the same set afterward
+(see [docs/recall.md](docs/recall.md), Chinese).
 
 ---
 
 ## FAQ
 
 **Nothing showed up after installing.**
-Run `cm doctor`. Usually there just wasn't a long enough conversation in the last 7 days
-(sessions with fewer than 2 user turns are skipped). Try `cm distill --days 60 --limit 5`.
+Run `cm doctor`. Usually there just wasn't a long enough conversation in the last 7 days.
+Try `cm distill --days 60 --limit 5`.
 
 **How do I backfill history?**
 `cm distill --days 365 --limit 0`, or a few nights at `nightly_limit` — the watermark remembers.
 
-**I already have a pile of memories elsewhere. Can I bring them in?**
-Yes. `python3 tools/import-legacy-jsonl.py <old.jsonl>` takes any one-per-line JSONL whose
-fields are named content/date/nature/kind/horizon/status (or their Chinese equivalents).
-It only writes the local store and is safe to re-run; then `cm distill --snapshot-only`.
+**I already have a pile of memories elsewhere.**
+`python3 tools/import-legacy-jsonl.py <old.jsonl>` takes most one-per-line formats; safe to re-run.
 
 **What does a night cost?**
-One call per session plus one snapshot build. At the default cap that's 21 calls.
-`~/.compound-memory/usage.log` has one line per call, so you can check for yourself.
+One call per session plus one snapshot build. `~/.compound-memory/usage.log` has one line per call.
 
 **Will it turn things I said into rules it then follows?**
-No. Memories carry a *nature*: only what you stated explicitly is tagged as a request, with
-a scope. The model's inferences sit in their own snapshot section, each labelled. Hard limits
-don't go through the model at all — point `baseline_file` at a local file and it's copied verbatim.
-
-**Does the injected snapshot get distilled back in as something I said?**
-No. The injection carries a `compound-memory-snapshot` marker that all three adapters filter
-out; dsh has a second layer (it tags the injection `source.kind: plugin`).
+No. Only what you stated explicitly is tagged as a request; inferences are labelled separately.
 
 **Can several machines share one memory?**
-Yes. Point `sink: github` at a **private** repo and clone it everywhere. Run the distillation
-on one machine; the others read only. Transcripts are never moved between machines.
-If you also want humans to browse it (on a phone, editing statuses by hand), use
-`sink: feishu` — `cm sink-init` creates the table and writes the tokens back for you.
-
-**Can I use it without Claude?**
-Yes — `llm.backend: openai` plus `base_url` and `api_key_env`. Just note that the defaults
-(`opus` / high) were chosen by a side-by-side comparison; if you swap the model, re-check coverage.
+Yes — `sink: github` with a **private** repo, or `sink: feishu` if you also want to browse it
+by hand (`cm sink-init` creates the table).
 
 **What's left after uninstalling?**
-`cm uninstall` removes the three injections and the cron entry; pre-change backups stay in
-`~/.compound-memory/backups/`. Memories are kept unless you pass `--purge`.
+`cm uninstall` removes the injections and cron; memories stay unless you pass `--purge`.
 
 ---
 
 ## Privacy
 
-- **Transcripts stay local.** Read in place; never uploaded, never copied to the shared layer.
-- **Every shared entry is judged individually** at the moment it's written: does an AI on
-  another machine need this, and does it contain secrets / third-party private details /
-  financial, legal or health information? When unsure, it stays local.
-- **Scrubbing happens at the export step**, not as an after-the-fact checklist — cleaning up
-  afterwards is whack-a-mole.
-- **Complete locally, redacted on the way out.** `observations.jsonl` keeps everything;
-  the shared layer only gets entries marked `share: true`.
-- **Always revocable.** The shared layer is files (or one table) — delete it and it's gone;
-  local memories can be rebuilt from the transcripts.
-- **Gate your pushes.** Writing docs and examples is exactly when your real content sneaks
-  into a repo. `bash tools/global-gate/install.sh` gates **every repo on this machine**: new
-  content in each push is checked against your own term list (kept outside the repo) and
-  fingerprints of everything you've said in your sessions; a hit blocks the push. Your own
-  publishing repos can use "publish" mode, which only blocks truly private items.
-  See [docs/privacy-gate.md](docs/privacy-gate.md) (Chinese).
+- **Transcripts stay local.** Read in place, never uploaded.
+- **Every shared entry is judged individually** — does anyone else need it, does it contain
+  secrets or private details — when unsure, it stays local; scrubbing happens at export.
+- **Always revocable.** The shared layer is files (or one table) — delete it and it's gone.
+- **Gate your pushes.** Writing docs and examples is exactly when real content sneaks into
+  a repo. `tools/global-gate/` gates every repo on the machine against your term list and
+  session fingerprints. See [docs/privacy-gate.md](docs/privacy-gate.md) (Chinese).
 
 ---
 
