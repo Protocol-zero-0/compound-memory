@@ -285,9 +285,18 @@ def install_cron(cfg, remove=False):
     log = os.path.join(CM_HOME, 'cron.log')
     # cron 的 cwd 是 $HOME,相对路径会静默错位 —— 所以显式 cd
     line = f'{when} cd {REPO} && {cm_bin()} distill >> {log} 2>&1  {CRON_TAG}'
-    _crontab_write('\n'.join(lines + [line]).rstrip() + '\n')
-    _record('cron', line)
-    return True, f'已装 cron:{when}'
+    # 撞额度后的补跑:每晚那次之后 6 小时内每小时看一眼记号,没记号就什么都不做
+    f = when.split()
+    try:
+        h = int(f[1])
+        hours = ','.join(str((h + i) % 24) for i in range(1, 7))
+        retry = f'{f[0]} {hours} * * * cd {REPO} && {cm_bin()} distill --if-pending >> {log} 2>&1  {CRON_TAG}'
+        add = [line, retry]
+    except (IndexError, ValueError):           # 小时不是单个数字(比如 */6)就不装补跑
+        add = [line]
+    _crontab_write('\n'.join(lines + add).rstrip() + '\n')
+    _record('cron', '\n'.join(add))
+    return True, f'已装 cron:{when}' + (',撞额度后 6 小时内每小时补跑' if len(add) > 1 else '')
 
 
 # ---------- 现状 ----------

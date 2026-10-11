@@ -55,6 +55,7 @@ sinks:
     # - {profile: work, base: <token>, table: <id>, fields: {标题: topic, 摘要: summary+points, 决策: decisions, 待办: next}}
 
 # ---- 额度与规模 ----
+thread_stale_days: 21       # 超过这么多天没再提起的线头不进快照(检索仍能找到)
 nightly_limit: 20          # 每次运行最多处理多少个 session(防止一夜烧穿额度)
 window_days: 7             # 只看最近多少天有新对话的 session;首次补历史用 `cm distill --days 120`
 max_candidates: 8          # 每个 session 最多提炼几条记忆

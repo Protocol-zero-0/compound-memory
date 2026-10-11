@@ -49,6 +49,12 @@ def build(cfg, rows, sessions_done, batch):
     lang = cfg.get('language') or 'zh'
     hard = int(cfg.get('snapshot_max_chars') or 3200)
     live = store.shared(rows)
+    # 线头只在有人明确说"办完了"时才关,实际上很多事办完了没人回来说。超过 thread_stale_days
+    # 天没再被提起的线头不进快照(检索仍然找得到),免得每个新会话开局都读到过时的待办。
+    stale_days = int(cfg.get('thread_stale_days') or 21)
+    cut = time.strftime('%Y-%m-%d', time.localtime(time.time() - stale_days * 86400))
+    stale = [m for m in live if m['kind'] == 'thread' and m['date'] < cut]
+    live = [m for m in live if not (m['kind'] == 'thread' and m['date'] < cut)]
     live.sort(key=lambda m: (m['horizon'] != 'long', m['date']))
     live, dropped = pick(live, int(cfg.get('snapshot_input_budget') or hard * 8))
     if dropped:
@@ -92,6 +98,11 @@ def build(cfg, rows, sessions_done, batch):
     title = f"# {cfg.get('user_name')} · snapshot\n\n" if lang == 'en' else f"# {cfg.get('user_name')} · 当前快照\n\n"
     head = title + head_t.format(t=time.strftime('%Y-%m-%d %H:%M'), host=store.HOST,
                                  n=len(live), done=sessions_done)
+    if stale:
+        head += (f'(Another {len(stale)} open threads not mentioned for over {stale_days} days are left out; '
+                 f'`cm recall` still finds them.)\n\n' if lang == 'en' else
+                 f'(另有 {len(stale)} 条超过 {stale_days} 天没再提起的线头未列出,可能已办完或搁置,'
+                 f'`cm recall` 仍可查。)\n\n')
     text = head + body.strip() + baseline(cfg, lang)
     llm.atomic_write(prev_path, text)        # 本机留一份,给下一次做措辞参照,也是取不到共享层时的兜底
     return text

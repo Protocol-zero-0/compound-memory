@@ -17,6 +17,7 @@ from .snapshot import build as build_snapshot
 
 HOST = socket.gethostname()
 LOG = os.path.join(config.HOME, 'distill.log')
+PENDING = os.path.join(config.HOME, 'retry-pending')   # 撞额度没跑完的记号
 BATCH = None
 
 
@@ -262,6 +263,11 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
     left = candidates(cfg, state, days)
     log(f'覆盖核对:窗口内仍未处理到最新的 session {len(left)} 个')
     if not (dry or snapshot_only):
+        # 撞了额度就留个记号,补跑的 cron(`--if-pending`)看到记号才动,跑通了就删
+        if hit_limit:
+            open(PENDING, 'w').write(BATCH + '\n')
+        elif os.path.exists(PENDING):
+            os.remove(PENDING)
         from .followups import run as run_followups
         run_followups(state, ok=(done > 0 and not errors and not hit_limit))
         store.save_state(state)
@@ -277,7 +283,11 @@ def main(argv=None):
     ap.add_argument('--snapshot-only', action='store_true', help='不提炼,只用现有记忆重写快照')
     ap.add_argument('--logs-backfill', type=int, default=0, help='飞书会话记录/每日日志往回补几天')
     ap.add_argument('--source', action='append', help='只处理这类来源(claude/codex/dsh/meeting),可重复')
+    ap.add_argument('--if-pending', action='store_true',
+                    help='只在上一次撞了额度没跑完时才跑(补跑用的 cron 调这个)')
     a = ap.parse_args(argv)
+    if a.if_pending and not os.path.exists(PENDING):
+        return 0
     cfg = config.load()
     return run(cfg, a.days, a.limit, a.dry, a.no_snapshot, a.snapshot_only, a.logs_backfill, a.source)
 
