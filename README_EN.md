@@ -78,7 +78,7 @@ full architecture diagram) → [docs/design.md](docs/design.md) (Chinese; transl
 ## Install
 
 ```bash
-git clone https://github.com/<you>/compound-memory.git ~/compound-memory
+git clone https://github.com/Protocol-zero-0/compound-memory.git ~/compound-memory
 cd ~/compound-memory && bash install.sh
 ```
 

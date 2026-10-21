@@ -76,7 +76,7 @@ $ cm recall "供应商"
 ## 一键安装
 
 ```bash
-git clone https://github.com/<你的账号>/compound-memory.git ~/compound-memory
+git clone https://github.com/Protocol-zero-0/compound-memory.git ~/compound-memory
 cd ~/compound-memory && bash install.sh
 ```
 
