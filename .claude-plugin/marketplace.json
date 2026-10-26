@@ -1,0 +1,15 @@
+{
+  "name": "compound-memory",
+  "owner": { "name": "Protocol Zero", "url": "https://github.com/Protocol-zero-0" },
+  "metadata": {
+    "description": "Long-term memory about you, shared across Claude Code and Codex sessions."
+  },
+  "plugins": [
+    {
+      "name": "compound-memory",
+      "source": "./",
+      "description": "Recall what past sessions learned about you by topic; set up nightly memory distillation.",
+      "category": "productivity"
+    }
+  ]
+}

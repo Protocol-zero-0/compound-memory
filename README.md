@@ -92,6 +92,16 @@ cm uninstall                               # 原样摘掉;加 --purge 连记忆�
 没有就把 `config.yaml` 里 `llm.backend` 改成 `openai`,填 `base_url` 和 `api_key_env`,
 任何 OpenAI 兼容接口都行。
 
+在 Claude Code 里也可以装成插件,让 agent 需要旧上下文时自己用 `cm recall` 去查,
+没装时由它带你跑上面的安装:
+
+```
+/plugin install compound-memory --marketplace Protocol-zero-0/compound-memory
+```
+
+旧版 Claude Code 分两步:`/plugin marketplace add Protocol-zero-0/compound-memory`,
+再 `/plugin install compound-memory@compound-memory`。只要 skill:`npx skills add Protocol-zero-0/compound-memory`。
+
 ---
 
 ## 支持矩阵

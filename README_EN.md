@@ -95,6 +95,16 @@ One prerequisite: **a model you can call.** By default it uses the `claude` CLI 
 already logged into. Otherwise set `llm.backend: openai` with `base_url` and `api_key_env` —
 any OpenAI-compatible endpoint works.
 
+In Claude Code you can also add it as a plugin. The agent then runs `cm recall` on its own
+when it needs earlier context, and walks you through the install above if `cm` is missing:
+
+```
+/plugin install compound-memory --marketplace Protocol-zero-0/compound-memory
+```
+
+On older Claude Code: `/plugin marketplace add Protocol-zero-0/compound-memory`, then
+`/plugin install compound-memory@compound-memory`. Just the skill: `npx skills add Protocol-zero-0/compound-memory`.
+
 ---
 
 ## Support matrix

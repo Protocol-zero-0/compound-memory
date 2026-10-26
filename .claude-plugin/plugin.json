@@ -1,0 +1,10 @@
+{
+  "name": "compound-memory",
+  "version": "0.1.0",
+  "description": "Long-term memory for Claude Code and Codex: distills your past sessions into a memory about you every night and lets the agent recall it by topic.",
+  "author": { "name": "Protocol Zero", "url": "https://github.com/Protocol-zero-0" },
+  "homepage": "https://github.com/Protocol-zero-0/compound-memory",
+  "repository": "https://github.com/Protocol-zero-0/compound-memory",
+  "license": "MIT",
+  "keywords": ["memory", "long-term-memory", "claude-code", "codex", "personalization", "context", "agent-memory"]
+}
