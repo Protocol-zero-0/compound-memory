@@ -29,7 +29,7 @@ class UsageLimit(Exception):
 
 
 LIMIT_MARKERS = ('usage limit', 'session limit', 'rate limit', 'rate_limit',
-                 'quota', 'insufficient_quota', 'too many requests', '429')
+                 "you've hit your 5-hour limit", 'quota', 'insufficient_quota', 'too many requests', '429')
 
 
 def needs_resummary(base_turns, now_turns):
