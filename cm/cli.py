@@ -88,6 +88,61 @@ def cmd_install(args):
     return 0
 
 
+def cmd_attach(args):
+    from . import bootstrap, sources
+
+    ap = argparse.ArgumentParser(prog='cm attach')
+    ap.add_argument('host', choices=['agy'])
+    ap.add_argument('--remove', action='store_true', help='摘掉 AGY 开局 hook 与自动提炼入口')
+    a = ap.parse_args(args)
+    cfg = config.load()
+    if not a.remove and not sources.REGISTRY[a.host].available(cfg):
+        ap.error('未找到 AGY 会话目录。请先用 AGY 开一次会话。')
+    if not a.remove and config.host_cfg(cfg, a.host).get('enabled') is False:
+        ap.error('配置里 hosts.agy.enabled 为 false，请先调整配置。')
+    try:
+        ok, message = bootstrap.INJECTORS[a.host](cfg, remove=a.remove)
+    except (OSError, ValueError) as ex:
+        print(f'AGY 接入失败：{ex}', file=sys.stderr)
+        return 1
+    print(message)
+    return 0 if ok else 1
+
+
+def cmd_agy_session_start(args):
+    import re
+    import shlex
+    from pathlib import Path
+
+    from . import bootstrap, recall
+    from .sources import MARKER, agy
+
+    cfg = config.load()
+    event = json.load(sys.stdin)
+    transcript = event.get('transcriptPath') or ''
+    if not transcript or not Path(transcript).expanduser().resolve().is_relative_to(agy.root(cfg).resolve()):
+        print('{}')
+        return 0
+
+    path = Path.home() / '.codex/AGENTS.md'
+    try:
+        rules = path.read_text(encoding='utf-8')
+    except FileNotFoundError:
+        rules = ''
+    # AGY already receives the snapshot here. The Codex instruction would fetch it again.
+    rules = re.sub(r'<!-- compound-memory:start -->.*?<!-- compound-memory:end -->',
+                   '', rules, flags=re.S).strip()
+    snapshot, src = recall.snapshot_text(cfg)
+    command = shlex.quote(bootstrap.cm_bin())
+    context = [rules, f'Use `{command} recall "topic"` to look up relevant past decisions.']
+    if snapshot:
+        context.append(f'<{MARKER} source="{src}">\n{snapshot}\n</{MARKER}>')
+    print(json.dumps({'injectSteps': [{'systemMessage': {
+        'systemMessage': '\n\n'.join(section for section in context if section),
+    }}]}, ensure_ascii=False))
+    return 0
+
+
 def cmd_uninstall(args):
     from . import bootstrap
     ap = argparse.ArgumentParser(prog='cm uninstall')
@@ -160,6 +215,7 @@ COMMANDS = {
     'doctor': cmd_doctor, 'install': cmd_install, 'uninstall': cmd_uninstall,
     'sessions': cmd_sessions, 'sink-init': cmd_sink_init, 'eval': cmd_eval,
     'privacy-index': cmd_privacy_index,
+    'attach': cmd_attach, 'agy-session-start': cmd_agy_session_start,
 }
 
 USAGE = """compound-memory —— 把每天的对话自动沉淀成"关于你"的长期记忆
@@ -172,6 +228,7 @@ USAGE = """compound-memory —— 把每天的对话自动沉淀成"关于你"�
   cm eval [--n N] [--set 题目文件]            量检索:出题→看标准答案排第几
   cm privacy-index                            重建推送隐私闸的原文指纹索引(只存哈希)
   cm install / cm uninstall                   接上/摘掉开局注入与 cron
+  cm attach agy                               接入 Antigravity CLI
   cm sink-init                                共享层初始化提示
 
 配置:{cfg}

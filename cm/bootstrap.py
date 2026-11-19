@@ -4,7 +4,7 @@
 原则:**能撤销**。每一处改动都先备份到 ~/.compound-memory/backups/,都带标记,
 `cm uninstall` 能原样摘掉。一个记忆系统如果卸不干净,没人敢装。
 """
-import json, os, re, shutil, subprocess, time
+import json, os, re, shlex, shutil, subprocess, time
 
 from . import config, llm
 from . import sources
@@ -256,7 +256,35 @@ def inject_dsh(cfg, remove=False):
     return ok, ';'.join(msgs)
 
 
-INJECTORS = {'claude': inject_claude, 'codex': inject_codex, 'dsh': inject_dsh}
+def inject_agy(cfg, remove=False):
+    from .sources import agy
+
+    path = agy.hooks_path()
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except FileNotFoundError:
+        data = {}
+    if not isinstance(data, dict):
+        return False, f'无法合并 {path}，期望 JSON 对象'
+    if remove:
+        if agy.HOOK_GROUP not in data:
+            return True, '没装过,跳过'
+        del data[agy.HOOK_GROUP]
+    else:
+        hook = {'SessionStart': [{
+            'type': 'command',
+            'command': f'{shlex.quote(cm_bin())} agy-session-start',
+            'timeout': 15,
+        }]}
+        if data.get(agy.HOOK_GROUP) == hook:
+            return True, f'已经装过({path})'
+        data[agy.HOOK_GROUP] = hook
+    backup(path)
+    llm.atomic_write(path, json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+    return True, f'{"已摘掉" if remove else "已接入"} {path}'
+
+
+INJECTORS = {'claude': inject_claude, 'codex': inject_codex, 'dsh': inject_dsh, 'agy': inject_agy}
 
 
 # ---------- cron ----------
@@ -302,7 +330,7 @@ def install_cron(cfg, remove=False):
 # ---------- 现状 ----------
 def detect(cfg):
     out = []
-    for name in ('claude', 'codex', 'dsh'):
+    for name in INJECTORS:
         mod = sources.REGISTRY[name]
         hc = config.host_cfg(cfg, name)
         avail = mod.available(cfg)
@@ -312,7 +340,7 @@ def detect(cfg):
                 n = len(mod.scan(cfg, None))
             except Exception:
                 n = -1
-        out.append({'name': name, 'available': avail, 'dir': config.expand(hc.get('dir') or ''),
+        out.append({'name': name, 'available': avail, 'dir': str(mod.root(cfg)),
                     'sessions': n, 'inject': bool(hc.get('inject', True)),
                     'injected': is_injected(name, cfg)})
     return out
@@ -320,6 +348,8 @@ def detect(cfg):
 
 def is_injected(name, cfg):
     try:
+        if name == 'agy':
+            return sources.REGISTRY[name].attached()
         if name == 'claude':
             p = claude_settings()
             if not os.path.exists(p):

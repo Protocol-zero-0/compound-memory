@@ -282,7 +282,7 @@ def main(argv=None):
     ap.add_argument('--no-snapshot', action='store_true')
     ap.add_argument('--snapshot-only', action='store_true', help='不提炼,只用现有记忆重写快照')
     ap.add_argument('--logs-backfill', type=int, default=0, help='飞书会话记录/每日日志往回补几天')
-    ap.add_argument('--source', action='append', help='只处理这类来源(claude/codex/dsh/meeting),可重复')
+    ap.add_argument('--source', action='append', help='只处理这类来源(claude/codex/dsh/agy/meeting),可重复')
     ap.add_argument('--if-pending', action='store_true',
                     help='只在上一次撞了额度没跑完时才跑(补跑用的 cron 调这个)')
     a = ap.parse_args(argv)

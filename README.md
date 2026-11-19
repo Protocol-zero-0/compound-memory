@@ -122,6 +122,7 @@ On older Claude Code: `/plugin marketplace add Protocol-zero-0/compound-memory`,
 | **Claude Code** | `~/.claude/projects/**/*.jsonl` | `SessionStart` hook in `settings.json` | ✅ verified |
 | **Codex CLI** | `~/.codex/sessions/**/rollout-*.jsonl` | appended block in `~/.codex/AGENTS.md` | ✅ verified |
 | **DeepSeek Harness (dsh)** | `~/.dsh/sessions/**/*.jsonl.zstd` | `~/.dsh/AGENTS.md` block **+** hook plugin | ✅ reading verified · ⚠️ plugin bridge: see [docs/dsh.md](docs/dsh.md) |
+| **Antigravity CLI (AGY)** | `~/.gemini/antigravity-cli/brain/*/.system_generated/logs/transcript.jsonl` | `SessionStart` hook in `~/.gemini/config/hooks.json` (`cm attach agy`) | ✅ verified |
 
 Adding a harness = one file, `cm/sources/<name>.py`, exposing `available / scan / load_turns`.
 

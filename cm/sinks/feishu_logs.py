@@ -10,14 +10,14 @@
 
 主题和概况来自提炼时顺手生成的那一句话(存在 state 里),不额外调模型。
 **手写的内容不碰**:每日日志里人写的事件列表保留原样,只更新会话数;
-只有空白行、或原本就是程序生成的清单(以 [Claude]/[Codex]/[dsh]/[会议] 开头)才重写。
+只有空白行、或原本就是程序生成的清单(以 [Claude]/[Codex]/[dsh]/[AGY]/[会议] 开头)才重写。
 """
 import datetime, json
 
 from .. import sources
 from .feishu import _one
 
-AUTO_PREFIX = ('[Claude]', '[Codex]', '[dsh]', '[会议]', '·')
+AUTO_PREFIX = ('[Claude]', '[Codex]', '[dsh]', '[AGY]', '[会议]', '·')
 # 纪要四项 → 表里的栏目名(config 里 sinks.feishu.session_fields / daily_fields 可改)
 # 栏目名的通用默认值。你的表叫法不同,就在本机 config.yaml 里改(session_fields / daily_fields / daily_core),
 # 不要改这里 —— 这里是给所有人用的默认值,不该带任何一个人的表结构。
@@ -28,7 +28,7 @@ DAILY_CORE = {'date': '日期', 'count': '会话数', 'events': '事件'}
 
 def _bullets(items):
     return '\n'.join(f'· {x}' for x in items)
-LABEL = {'claude': 'Claude', 'codex': 'Codex', 'dsh': 'dsh'}
+LABEL = {'claude': 'Claude', 'codex': 'Codex', 'dsh': 'dsh', 'agy': 'AGY'}
 
 
 def _day(ts, tz):
