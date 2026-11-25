@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 1920px; height: 580px; overflow: hidden; background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans CJK SC", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .canvas {
+    position: relative; width: 1920px; height: 580px; border-radius: 24px; overflow: hidden;
+    background:
+      radial-gradient(640px 460px at 82% 50%, rgba(99, 102, 241, 0.24) 0%, rgba(16, 185, 129, 0.1) 48%, rgba(9, 13, 22, 0) 76%),
+      radial-gradient(480px 340px at 14% 12%, rgba(16, 185, 129, 0.1) 0%, rgba(9, 13, 22, 0) 70%),
+      linear-gradient(135deg, #090d16 0%, #0f172a 58%, #0b1120 100%);
+    border: 2px solid rgba(99, 102, 241, 0.28);
+  }
+  .grid {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(148,163,184,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.045) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  .top-line { position: absolute; top: 0; left: 88px; width: 520px; height: 3px; background: linear-gradient(90deg, #34d399 0%, #818cf8 60%, transparent 100%); }
+  .wrap { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; height: 100%; padding: 52px 84px 48px 88px; }
+  .left { width: 1180px; display: flex; flex-direction: column; justify-content: space-between; height: 100%; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 10px; width: fit-content; padding: 7px 17px; border-radius: 999px;
+    background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.35);
+    color: #6ee7b7; font-family: "Noto Sans Mono", monospace; font-size: 16px; font-weight: 700; letter-spacing: 0.12em;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #34d399; box-shadow: 0 0 12px #34d399; }
+  .brand-row { display: flex; align-items: baseline; gap: 18px; margin-bottom: 10px; }
+  .brand { font-family: "Noto Sans Mono", sans-serif; font-size: 48px; font-weight: 800; letter-spacing: 0.04em; color: #f8fafc; }
+  .tag { font-family: "Noto Sans Mono", monospace; font-size: 16px; font-weight: 600; color: #a5b4fc; padding: 5px 12px; border-radius: 8px; background: rgba(99,102,241,0.14); border: 1px solid rgba(129,140,248,0.34); }
+  .headline { font-size: 56px; font-weight: 900; line-height: 1.12; letter-spacing: -0.025em; color: #ffffff; }
+  .headline .accent { background: linear-gradient(90deg, #34d399 0%, #818cf8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .sub { margin-top: 14px; font-size: 22px; color: #cbd5e1; }
+  .sub strong { color: #f8fafc; }
+  .pills { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 20px; }
+  .pill { background: rgba(15, 23, 42, 0.78); border: 1px solid rgba(148, 163, 184, 0.18); border-radius: 14px; padding: 14px 18px; }
+  .pill.hi { border-color: rgba(52, 211, 153, 0.38); background: rgba(12, 30, 32, 0.8); }
+  .pv { font-family: "Noto Sans Mono", sans-serif; font-size: 28px; font-weight: 800; color: #ffffff; }
+  .pill.hi .pv { color: #6ee7b7; }
+  .pl { margin-top: 4px; font-size: 15px; color: #cbd5e1; }
+  .right { width: 520px; background: rgba(15, 23, 42, 0.88); border: 1px solid rgba(129, 140, 248, 0.32); border-radius: 18px; padding: 28px 30px; box-shadow: 0 18px 50px rgba(0,0,0,0.45); font-family: "Noto Sans Mono", monospace; }
+  .term-bar { display: flex; gap: 8px; margin-bottom: 18px; align-items: center; }
+  .tb { width: 12px; height: 12px; border-radius: 50%; }
+  .term-title { margin-left: 10px; font-size: 14px; color: #94a3b8; }
+  .code { font-size: 16px; line-height: 1.62; color: #e2e8f0; white-space: pre; }
+  .c-dim { color: #64748b; }
+  .c-green { color: #6ee7b7; font-weight: 700; }
+  .c-ind { color: #a5b4fc; font-weight: 700; }
+  .c-amber { color: #fcd34d; }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="grid"></div>
+  <div class="top-line"></div>
+  <div class="wrap">
+    <div class="left">
+      <div class="eyebrow"><span class="dot"></span>LOCAL-FIRST AGENT MEMORY · CLAUDE CODE · CODEX · DSH</div>
+      <div>
+        <div class="brand-row">
+          <div class="brand">compound-memory</div>
+          <div class="tag">MIT · ZERO DEPS</div>
+        </div>
+        <div class="headline">Stop Re-Explaining Yourself<br>in <span class="accent">Every New AI Session</span></div>
+        <div class="sub">Distills daily transcripts nightly into one evolving snapshot · <strong>Injected automatically on every machine</strong></div>
+      </div>
+      <div class="pills">
+        <div class="pill hi"><div class="pv">0 Deps</div><div class="pl">Pure Python Stdlib</div></div>
+        <div class="pill"><div class="pv">3 Harnesses</div><div class="pl">Claude · Codex · dsh</div></div>
+        <div class="pill hi"><div class="pv">Local-First</div><div class="pl">Transcripts Stay Private</div></div>
+        <div class="pill"><div class="pv">Auto-Prune</div><div class="pl">Updates, Never Piles Up</div></div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="term-bar">
+        <div class="tb" style="background:#f87171"></div>
+        <div class="tb" style="background:#fbbf24"></div>
+        <div class="tb" style="background:#34d399"></div>
+        <div class="term-title">SessionStart · auto-injected</div>
+      </div>
+      <div class="code"><span class="c-ind">&lt;compound-memory-snapshot&gt;</span>
+<span class="c-green"># Alex · live memory (86 entries)</span>
+
+<span class="c-amber">## A Long-horizon</span>
+- Code review: correctness only,
+  no scope creep <span class="c-dim">(09-02)</span>
+- Reports: plain language,
+  no consulting jargon <span class="c-dim">(08-14)</span>
+
+<span class="c-amber">## B Open threads</span>
+- Confirm supplier ship date
+  before launch <span class="c-dim">(09-18)</span>
+<span class="c-ind">&lt;/compound-memory-snapshot&gt;</span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

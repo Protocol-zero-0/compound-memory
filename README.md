@@ -1,183 +1,203 @@
 <div align="center">
 
-# 🧠 compound-memory
+<p><b>English</b> &nbsp;|&nbsp; <a href="README.zh-CN.md">简体中文</a></p>
 
-**每次开新对话都要重新自我介绍?让 AI 自动记住你。**
+<img src="docs/hero-en.png" alt="compound-memory: Long-Term Memory for Coding Agents" width="100%" />
 
-一个后台进程,每晚把你和 AI 的对话变成"关于你"的记忆;下一次对话——
-换机器、换工具、换模型都一样——开局就带着它,不用你再解释一遍。
+<br />
 
-[中文](README.md) · [English](README_EN.md) · [原理与设计](docs/design.md) · [检索](docs/recall.md) · [隐私闸](docs/privacy-gate.md)
+<p>
+  <img src="https://img.shields.io/badge/Harness-Claude%20Code%20%7C%20Codex%20%7C%20dsh-0F172A?style=for-the-badge&labelColor=0D9488" alt="Harness" />
+  <img src="https://img.shields.io/badge/Python-3.9%2B-0F172A?style=for-the-badge&labelColor=4F46E5" alt="Python 3.9+" />
+  <img src="https://img.shields.io/badge/Dependencies-0-0F172A?style=for-the-badge&labelColor=334155" alt="Zero Dependencies" />
+  <img src="https://img.shields.io/badge/License-MIT-0F172A?style=for-the-badge&labelColor=334155" alt="MIT" />
+</p>
 
-![python](https://img.shields.io/badge/python-3.9%2B-blue)
-![harness](https://img.shields.io/badge/harness-Claude%20Code%20%7C%20Codex%20%7C%20dsh-green)
-![deps](https://img.shields.io/badge/依赖-0-lightgrey)
-![license](https://img.shields.io/badge/license-MIT-black)
+<h3>Tired of re-introducing yourself every new chat? Let the AI remember across sessions, tools, and machines.</h3>
+
+<p>
+  <a href="#install"><b>Quick Install</b></a> ·
+  <a href="#support-matrix"><b>Support Matrix</b></a> ·
+  <a href="docs/design.md"><b>Design Notes (ZH)</b></a> ·
+  <a href="docs/recall.md"><b>Retrieval (ZH)</b></a> ·
+  <a href="docs/privacy-gate.md"><b>Push Privacy Gate (ZH)</b></a>
+</p>
 
 </div>
 
 ---
 
-## 长这样(下面是虚构示例,不是真实用户数据)
 
-新会话开局,这段会自动出现在上下文里:
+## What it looks like (fictional example below, not real user data)
+
+At the start of a new session, this shows up in context automatically:
 
 ```
 <compound-memory-snapshot source="shared">
-# Alex · 当前快照
-生成:2026-09-20 04:30 · 有效共享记忆 86 条
+# Alex · snapshot
+generated 2026-09-20 04:30 · 86 live shared memories
 
-## A 长时效
-### 他明确提出的要求
-- 代码审查只看正确性和可简化的地方,不主动扩大范围(09-02)
-- 周报用大白话,不用咨询黑话(08-14)
+## A Long-horizon
+### What he has explicitly asked for
+- Code review: correctness and simplification only, don't expand scope (09-02)
+- Weekly reports: plain language, no consulting jargon (08-14)
 
-## B 短时效
-### 未收口线头
-- 等供应商确认交付日期后再定发布时间(09-18)
+## B Short-horizon
+### Open threads
+- Wait for the supplier to confirm delivery date before setting launch date (09-18)
 </compound-memory-snapshot>
 ```
 
-工作中随时按话题翻细节,带出处:
+And you can search it anytime, with sources:
 
 ```bash
-$ cm recall "供应商"
-【记忆检索】
-- [线头·承诺, 09-18] 等供应商确认交付日期后再定发布时间
-    出处:claude:3267ab25 · 发布节奏讨论
+$ cm recall "supplier"
+【memory】
+- [open-thread, 09-18] Wait for the supplier to confirm delivery date before setting launch date
+    from: claude:3267ab25 · launch timing discussion
 ```
 
-## 为什么好用
+## Why it's worth using
 
-- **不用你做任何事。** 每晚自动读会话、提炼、写快照,你只管正常用 AI。
-- **跨工具、跨机器。** Claude Code、Codex、DeepSeek Harness 共用同一份记忆,三边都自动注入。
-- **会更新,不会越堆越乱。** 改主意了,旧记忆自动失效;不是无限累积的日志。
-- **原文永远留在本机。** 只有逐条判定"必要且适合共享"的记忆会出机,出机前清洗密钥。
-- **额度有纪律。** 精简调用、每晚上限,撞到额度就停,不会偷偷烧钱。
+- **You do nothing.** Reads transcripts, distills, writes the snapshot — every night, automatically.
+- **Works across tools and machines.** Claude Code, Codex and DeepSeek Harness share one memory.
+- **Gets updated, doesn't pile up.** Change your mind and the old memory expires — it's not an endless log.
+- **Transcripts never leave the machine.** Only memories judged "necessary and appropriate to share" go out, scrubbed of secrets first.
+- **Budget discipline.** Slim calls, a nightly cap, stops cold at the limit instead of quietly burning money.
 
-设计取舍(为什么按 session 不按天、为什么不用文件 mtime、修订语义怎么定、完整架构图)
-→ [docs/design.md](docs/design.md)
-
----
-
-## 🚩 装之前看一眼
-
-- **它会读你全部的会话记录。** 这是它唯一的信息来源。不能接受就别装。
-- **它会按配置的模型花钱/花额度。** 默认每晚最多 20 个 session,一个 session 一次调用。
-  先用 `cm distill --dry` 看一眼要处理多少个。
-- **开局注入会改几个文件**(`~/.claude/settings.json`、`~/.codex/AGENTS.md` 等),
-  都先备份、带标记,`cm uninstall` 原样摘掉。
-- **默认模型是 Claude Opus。** 对比实验里 Sonnet 会漏掉约四分之一的条目。省钱可以换,
-  但知道你在换什么。
-- **推断不是规则。** 只有你明确说过的话才带"要求"标记,模型不会替你立规矩。
+Design rationale (why per-session not per-day, why not file mtime, how revisions are decided,
+full architecture diagram) → [docs/design.md](docs/design.md) (Chinese; translate as needed).
 
 ---
 
-## 一键安装
+## 🚩 Before you install
+
+- **It reads all of your session logs.** That is its only input. If that's not OK, don't install it.
+- **It spends model budget.** Up to 20 sessions per night by default, one call each.
+  Run `cm distill --dry` first.
+- **Session-start injection edits a few files** (`~/.claude/settings.json`, `~/.codex/AGENTS.md`, etc.),
+  each backed up and marked; `cm uninstall` removes exactly what it added.
+- **The default model is Claude Opus.** Sonnet missed about a quarter of the entries in testing.
+  Downgrade if you want, just know the trade-off.
+- **An inference is not a rule.** Only things you said explicitly are tagged as requests.
+
+---
+
+## Install
 
 ```bash
 git clone https://github.com/Protocol-zero-0/compound-memory.git ~/compound-memory
 cd ~/compound-memory && bash install.sh
 ```
 
-装完会当场跑一次提炼并把快照打出来——不用等到第二天才知道通没通。
+It runs one distillation right away and prints the snapshot — you find out whether it
+works now, not tomorrow morning.
 
 ```bash
-bash install.sh --name 张三 --yes          # 不交互
-bash install.sh --no-cron --no-inject      # 只铺文件,自己决定怎么接
-cm uninstall                               # 原样摘掉;加 --purge 连记忆一起删
+bash install.sh --name Alex --yes          # non-interactive
+bash install.sh --no-cron --no-inject      # just lay down files
+cm uninstall                               # remove cleanly; --purge also deletes memories
 ```
 
-前置条件只有一个:**一个能调的模型**。默认用本机已经登录的 `claude` 命令(零额外配置);
-没有就把 `config.yaml` 里 `llm.backend` 改成 `openai`,填 `base_url` 和 `api_key_env`,
-任何 OpenAI 兼容接口都行。
+One prerequisite: **a model you can call.** By default it uses the `claude` CLI you're
+already logged into. Otherwise set `llm.backend: openai` with `base_url` and `api_key_env` —
+any OpenAI-compatible endpoint works.
 
-在 Claude Code 里也可以装成插件,让 agent 需要旧上下文时自己用 `cm recall` 去查,
-没装时由它带你跑上面的安装:
+In Claude Code you can also add it as a plugin. The agent then runs `cm recall` on its own
+when it needs earlier context, and walks you through the install above if `cm` is missing:
 
 ```
 /plugin install compound-memory --marketplace Protocol-zero-0/compound-memory
 ```
 
-旧版 Claude Code 分两步:`/plugin marketplace add Protocol-zero-0/compound-memory`,
-再 `/plugin install compound-memory@compound-memory`。只要 skill:`npx skills add Protocol-zero-0/compound-memory`。
+On older Claude Code: `/plugin marketplace add Protocol-zero-0/compound-memory`, then
+`/plugin install compound-memory@compound-memory`. Just the skill: `npx skills add Protocol-zero-0/compound-memory`.
 
 ---
 
-## 支持矩阵
+## Support matrix
 
-| harness | 读原文 | 开局注入 | 状态 |
+| Harness | Reads transcripts from | Session-start injection | Status |
 |---|---|---|---|
-| **Claude Code** | `~/.claude/projects/**/*.jsonl` | `settings.json` 的 `SessionStart` hook | ✅ 已验证 |
-| **Codex CLI** | `~/.codex/sessions/**/rollout-*.jsonl` | `~/.codex/AGENTS.md` 追加一段 | ✅ 已验证 |
-| **DeepSeek Harness (dsh)** | `~/.dsh/sessions/**/*.jsonl.zstd` | `~/.dsh/AGENTS.md` 追加一段 **+** hook 插件 | ✅ 读原文已验证 · ⚠️ 插件桥见 [docs/dsh.md](docs/dsh.md) |
+| **Claude Code** | `~/.claude/projects/**/*.jsonl` | `SessionStart` hook in `settings.json` | ✅ verified |
+| **Codex CLI** | `~/.codex/sessions/**/rollout-*.jsonl` | appended block in `~/.codex/AGENTS.md` | ✅ verified |
+| **DeepSeek Harness (dsh)** | `~/.dsh/sessions/**/*.jsonl.zstd` | `~/.dsh/AGENTS.md` block **+** hook plugin | ✅ reading verified · ⚠️ plugin bridge: see [docs/dsh.md](docs/dsh.md) |
 
-再加一个 harness = 写一个 `cm/sources/<名字>.py`,提供 `available / scan / load_turns` 三个函数。
+Adding a harness = one file, `cm/sources/<name>.py`, exposing `available / scan / load_turns`.
 
 ---
 
-## 配置说明
+## Configuration
 
-配置在 `~/.compound-memory/config.yaml`(装的时候从 `config.example.yaml` 复制过去)。
+Lives in `~/.compound-memory/config.yaml` (copied from `config.example.yaml` at install).
 
-| 键 | 默认 | 说明 |
+| Key | Default | Meaning |
 |---|---|---|
-| `user_name` | 安装时问你 | 记忆是关于谁的 |
+| `user_name` | asked at install | who the memory is about |
 | `language` | `zh` | `zh` / `en` |
-| `model` / `effort` | `opus` / `high` | 后台提炼用的模型(写别名,自动跟最新版) |
-| `llm.backend` | `claude-cli` | 或 `openai`(任何兼容接口) |
-| `sink` | `local` | 共享层:`local` / `github` / `feishu` |
-| `nightly_limit` | `20` | 每次运行最多处理几个 session |
-| `window_days` | `7` | 只看最近多少天有新对话的 session |
-| `snapshot_max_chars` | `3200` | 快照正文硬上限,超了自动压缩 |
-| `cron` | `30 4 * * *` | 每晚跑的时间 |
-| `hosts.<名字>.enabled/inject` | `auto` / `true` | 这个 harness 要不要装开局注入 |
+| `model` / `effort` | `opus` / `high` | model used for distillation (alias, tracks latest) |
+| `llm.backend` | `claude-cli` | or `openai` (any compatible endpoint) |
+| `sink` | `local` | shared layer: `local` / `github` / `feishu` |
+| `nightly_limit` | `20` | max sessions processed per run |
+| `window_days` | `7` | only sessions with new activity in this window |
+| `snapshot_max_chars` | `3200` | hard cap on the snapshot body |
+| `cron` | `30 4 * * *` | when the nightly run fires |
+| `hosts.<name>.enabled/inject` | `auto` / `true` | whether to inject for this harness |
 
-提示词在 `prompts/` 下,纯文本——**这是最该你自己调的东西**。想改又想保留原版,
-复制到 `~/.compound-memory/prompts/`,那边优先。改之前先 `cm eval --n 24` 存一套题,
-改完用同一套题复跑再比较,见 [docs/recall.md](docs/recall.md)。
-
----
-
-## 常见问题
-
-**装完什么都没有?**
-`cm doctor` 看一眼。最常见的是最近 7 天没有够长的对话,试 `cm distill --days 60 --limit 5`。
-
-**怎么补历史?**
-`cm distill --days 365 --limit 0`。按 `nightly_limit` 分几晚跑完也行,水位线记得住。
-
-**已经有一堆记忆了,能搬过来吗?**
-能。`python3 tools/import-legacy-jsonl.py <旧文件.jsonl>`,一行一条的旧格式都吃得下,
-重复跑安全。
-
-**一晚上要花多少?**
-一个 session 一次调用,加一次快照生成。`~/.compound-memory/usage.log` 一行一次,可以自己核。
-
-**会不会把我说的话当成规则执行?**
-不会。只有你明确提出的才标"要求";模型的推断在快照里单独一节、逐条标明。
-
-**能多台机器共用吗?**
-能。`sink: github` 指一个**私有**仓库,每台机器 clone;或 `sink: feishu` 让人也能随手翻,
-`cm sink-init` 一条命令建表。
-
-**卸载会留下什么?**
-`cm uninstall` 摘掉注入和 cron;记忆默认留着,要删加 `--purge`。
+The prompts are plain files under `prompts/` — **the thing you should most want to tune**.
+Copy them to `~/.compound-memory/prompts/` to edit while keeping the originals. Before
+tuning, run `cm eval --n 24` to freeze a question set; compare with the same set afterward
+(see [docs/recall.md](docs/recall.md), Chinese).
 
 ---
 
-## 隐私
+## FAQ
 
-- **原文不出机。** 会话文件只在本机读,不上传。
-- **出机的东西逐条判定。** 每条记忆都要回答"别的机器需不需要它"和"含不含密钥/隐私信息";
-  拿不准就留本地,密钥清洗做在导出那一步。
-- **随时可撤回。** 共享层是文件(或一张表),删掉就没了;本地记忆重跑原文可以重建。
-- **推代码之前过闸。** 写文档举例子最容易顺手把真实内容带进仓库。`tools/global-gate/` 给
-  本机所有仓库装一道推送闸,拿敏感词表和会话原文指纹扫新内容,命中就推不出去。
-  细节见 [docs/privacy-gate.md](docs/privacy-gate.md)。
+**Nothing showed up after installing.**
+Run `cm doctor`. Usually there just wasn't a long enough conversation in the last 7 days.
+Try `cm distill --days 60 --limit 5`.
+
+**How do I backfill history?**
+`cm distill --days 365 --limit 0`, or a few nights at `nightly_limit` — the watermark remembers.
+
+**I already have a pile of memories elsewhere.**
+`python3 tools/import-legacy-jsonl.py <old.jsonl>` takes most one-per-line formats; safe to re-run.
+
+**What does a night cost?**
+One call per session plus one snapshot build. `~/.compound-memory/usage.log` has one line per call.
+
+**Will it turn things I said into rules it then follows?**
+No. Only what you stated explicitly is tagged as a request; inferences are labelled separately.
+
+**Can several machines share one memory?**
+Yes — `sink: github` with a **private** repo, or `sink: feishu` if you also want to browse it
+by hand (`cm sink-init` creates the table).
+
+**What's left after uninstalling?**
+`cm uninstall` removes the injections and cron; memories stay unless you pass `--purge`.
 
 ---
 
-## 许可
+## Privacy
 
-MIT。
+- **Transcripts stay local.** Read in place, never uploaded.
+- **Every shared entry is judged individually** — does anyone else need it, does it contain
+  secrets or private details — when unsure, it stays local; scrubbing happens at export.
+- **Always revocable.** The shared layer is files (or one table) — delete it and it's gone.
+- **Gate your pushes.** Writing docs and examples is exactly when real content sneaks into
+  a repo. `tools/global-gate/` gates every repo on the machine against your term list and
+  session fingerprints. See [docs/privacy-gate.md](docs/privacy-gate.md) (Chinese).
+
+---
+
+## License
+
+MIT.
+
+---
+
+### More from Protocol Zero
+
+- **[evolution-kernel](https://github.com/Protocol-zero-0/evolution-kernel)** — Open-source AlphaEvolve / FunSearch-style self-improving code loop, sandboxed and ledgered.
+- **[gpu-resume-skill](https://github.com/Protocol-zero-0/gpu-resume-skill)** — Checkpoint recovery layer for LLM fine-tuning, evaluation, and batch inference across Spot GPU preemptions on SkyPilot.
+- **[link-rot-scanner](https://github.com/Protocol-zero-0/link-rot-scanner)** — Zero-false-positive dead link auditor for large awesome lists.

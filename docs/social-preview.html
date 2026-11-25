@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1280px; height: 640px; overflow: hidden; background: #090d16; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans CJK SC", sans-serif; }
+  .canvas {
+    position: relative; width: 1280px; height: 640px;
+    background:
+      radial-gradient(540px 440px at 84% 50%, rgba(99, 102, 241, 0.28) 0%, rgba(16, 185, 129, 0.12) 48%, rgba(9, 13, 22, 0) 76%),
+      linear-gradient(135deg, #090d16 0%, #0f172a 58%, #0b1120 100%);
+  }
+  .grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(148,163,184,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.05) 1px, transparent 1px); background-size: 40px 40px; }
+  .top-line { position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #34d399 0%, #818cf8 55%, transparent 100%); }
+  .wrap { position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; height: 100%; padding: 62px 72px; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 10px; width: fit-content; padding: 7px 16px; border-radius: 999px; background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.38); color: #6ee7b7; font-family: "Noto Sans Mono", monospace; font-size: 15px; font-weight: 700; letter-spacing: 0.12em; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #34d399; }
+  .brand { font-family: "Noto Sans Mono", sans-serif; font-size: 48px; font-weight: 800; color: #ffffff; margin-bottom: 14px; }
+  .headline { font-size: 52px; font-weight: 900; line-height: 1.15; color: #f8fafc; letter-spacing: -0.02em; }
+  .headline .accent { background: linear-gradient(90deg, #34d399 0%, #818cf8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .sub { margin-top: 16px; font-size: 22px; color: #cbd5e1; }
+  .pills { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .pill { background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 14px; padding: 16px 18px; }
+  .pill.hi { border-color: rgba(52, 211, 153, 0.4); background: rgba(12, 30, 32, 0.85); }
+  .pv { font-family: "Noto Sans Mono", sans-serif; font-size: 26px; font-weight: 800; color: #ffffff; }
+  .pill.hi .pv { color: #6ee7b7; }
+  .pl { margin-top: 4px; font-size: 14px; color: #cbd5e1; }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="grid"></div>
+  <div class="top-line"></div>
+  <div class="wrap">
+    <div class="eyebrow"><span class="dot"></span>CLAUDE CODE · CODEX CLI · DEEPSEEK HARNESS</div>
+    <div>
+      <div class="brand">compound-memory</div>
+      <div class="headline">Long-Term Memory for <span class="accent">Coding Agents</span></div>
+      <div class="sub">Nightly transcript distillation into a live personal snapshot · Local-first, zero dependencies, MIT</div>
+    </div>
+    <div class="pills">
+      <div class="pill hi"><div class="pv">0 Deps</div><div class="pl">Pure Python Stdlib</div></div>
+      <div class="pill"><div class="pv">3 Harnesses</div><div class="pl">Cross-Tool Shared</div></div>
+      <div class="pill hi"><div class="pv">Local-First</div><div class="pl">Transcripts Stay Private</div></div>
+      <div class="pill"><div class="pv">MIT</div><div class="pl">Open Source</div></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
