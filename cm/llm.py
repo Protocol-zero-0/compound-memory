@@ -9,7 +9,7 @@
   4. 提示词走 stdin,避开 argv 长度上限
   5. 每次真调了模型就记一行 usage.log,方便日后核对"是不是在偷偷烧"
 """
-import fcntl, json, os, shutil, subprocess, time, urllib.request, urllib.error
+import fcntl, json, os, re, shutil, subprocess, time, urllib.request, urllib.error
 from . import config
 
 cfg = config.load()
@@ -28,8 +28,9 @@ class UsageLimit(Exception):
     """订阅额度 / 限流。遇到它要立刻停,并且不推进水位线。"""
 
 
-LIMIT_MARKERS = ('usage limit', 'session limit', 'rate limit', 'rate_limit',
+LIMIT_MARKERS = ('usage limit', 'session limit', 'weekly limit', 'rate limit', 'rate_limit',
                  "you've hit your 5-hour limit", 'quota', 'insufficient_quota', 'too many requests', '429')
+_LIMIT_RE = re.compile(r"(?:you've |you have )?hit your [\w-]{1,16}(?: [\w-]{1,16})? limit", re.I)
 
 
 def needs_resummary(base_turns, now_turns):
@@ -38,11 +39,13 @@ def needs_resummary(base_turns, now_turns):
 
 def _looks_like_limit(text):
     t = (text or '').lower()
-    return any(m in t for m in LIMIT_MARKERS)
+    return any(m in t for m in LIMIT_MARKERS) or bool(_LIMIT_RE.search(t))
 
 
 ACCOUNT_MARKERS = ('organization has been disabled', 'not logged in', 'please run /login',
-                   'invalid api key', 'authentication_error', 'permission_error', 'account has been')
+                   'invalid api key', 'authentication_error', 'permission_error', 'account has been',
+                   'failed to authenticate', 'token expired', 'oauth session expired',
+                   'oauth token has expired')
 
 
 class ModelUnavailable(Exception):

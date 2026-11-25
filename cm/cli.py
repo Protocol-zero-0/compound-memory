@@ -210,9 +210,73 @@ def cmd_sink_init(args):
         return 1
 
 
+def cmd_health(args):
+    import time
+    from . import distill, snapshot, sources, store
+
+    ap = argparse.ArgumentParser(prog='cm health')
+    ap.add_argument('--json', action='store_true')
+    a = ap.parse_args(args)
+    cfg = config.load()
+    rows = store.load()
+    state = store.load_state()
+    today = store.local_today(cfg)
+    live_rows = store.live(rows)
+    expired_live = [m for m in live_rows if store.expired(m, today)]
+    all_shared = [m for m in store.shared(rows) if not store.expired(m, today)]
+    stale_days = int(cfg.get('thread_stale_days') or 21)
+    cut = time.strftime('%Y-%m-%d', time.localtime(time.time() - stale_days * 86400))
+    cand_shared = [m for m in all_shared if not (m['kind'] == 'thread' and m['date'] < cut)]
+    budget = int(cfg.get('snapshot_input_budget') or 51200)
+    raw_req_thr_chars = sum(
+        len(m.get('content') or '') for m in cand_shared
+        if m.get('nature') == 'request' or m.get('kind') == 'thread'
+    )
+    picked, dropped = snapshot.pick(list(cand_shared), budget)
+    non_req_thr_picked = sum(
+        1 for m in picked if m.get('nature') != 'request' and m.get('kind') != 'thread'
+    )
+    pending_hours = 0.0
+    if os.path.exists(distill.PENDING):
+        pending_hours = round((time.time() - os.path.getmtime(distill.PENDING)) / 3600, 1)
+
+    recs = sources.scan_all(cfg, distill.cutoff(60))
+    idle_tails = 0
+    idle_tail_turns = 0
+    for r in recs:
+        key = f"{r['source']}:{r['sid']}"
+        st = state.get(key)
+        now_t = r.get('n_user_turns', 0)
+        if st and st.get('ts_last') != r.get('ts_last') and now_t > (st.get('turns') or 0):
+            if distill._is_idle_tail(r.get('ts_last') or ''):
+                idle_tails += 1
+                idle_tail_turns += now_t - (st.get('turns') or 0)
+
+    info = {
+        'total_rows': len(rows),
+        'live_rows': len(live_rows),
+        'expired_still_active': len(expired_live),
+        'shared_eligible': len(cand_shared),
+        'snapshot_budget': budget,
+        'req_thread_pressure': round(raw_req_thr_chars / max(1, budget), 3),
+        'picked_count': len(picked),
+        'picked_non_req_thread': non_req_thr_picked,
+        'dropped_count': dropped,
+        'idle_tail_sessions_60d': idle_tails,
+        'idle_tail_turns_60d': idle_tail_turns,
+        'pending_hours': pending_hours,
+    }
+    if a.json:
+        print(json.dumps(info, ensure_ascii=False))
+    else:
+        for k, v in info.items():
+            print(f'{k:26} {v}')
+    return 0
+
+
 COMMANDS = {
     'distill': cmd_distill, 'snapshot': cmd_snapshot, 'recall': cmd_recall,
-    'doctor': cmd_doctor, 'install': cmd_install, 'uninstall': cmd_uninstall,
+    'doctor': cmd_doctor, 'health': cmd_health, 'install': cmd_install, 'uninstall': cmd_uninstall,
     'sessions': cmd_sessions, 'sink-init': cmd_sink_init, 'eval': cmd_eval,
     'privacy-index': cmd_privacy_index,
     'attach': cmd_attach, 'agy-session-start': cmd_agy_session_start,
@@ -224,6 +288,7 @@ USAGE = """compound-memory —— 把每天的对话自动沉淀成"关于你"�
   cm snapshot [--refresh]                     打印当前快照(开局注入用的就是它)
   cm recall "话题" [--k N] [--expand]         按话题检索记忆
   cm doctor                                   看现状:配置、记忆条数、各 harness 接没接上
+  cm health [--json]                          记忆健康度:快照分桶负载、过期未退场、静默尾巴、补跑滞留
   cm sessions [N]                             列最近的 session 与处理状态
   cm eval [--n N] [--set 题目文件]            量检索:出题→看标准答案排第几
   cm privacy-index                            重建推送隐私闸的原文指纹索引(只存哈希)

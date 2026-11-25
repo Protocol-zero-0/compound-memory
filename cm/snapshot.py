@@ -8,10 +8,10 @@ import os, time
 
 from . import config, llm, prompts, store, lexicon as L
 
-HOST_LINE_ZH = ('生成:{t} · 生成机器:{host} · 有效共享记忆 {n} 条 · 本批处理 {done} 个 session\n'
+HOST_LINE_ZH = ('生成:{t} · 机器:{host} · 有效共享 {n_total} 条(纳入 {n} 条) · 本批处理 {done} 个 session\n'
                 '原文和完整记忆在生成机器本机;本机不可核查的细节请标注「未核实」。'
                 '快照只是开局导航,工作中按任务检索。\n\n')
-HOST_LINE_EN = ('generated {t} · on {host} · {n} live shared memories · {done} sessions this batch\n'
+HOST_LINE_EN = ('generated {t} · on {host} · {n_total} live shared memories ({n} fed this build) · {done} sessions this batch\n'
                 'The transcripts and the full memory store stay on the machine that generated this. '
                 'Mark anything you cannot verify locally as unverified. This snapshot is orientation, '
                 'not the whole record — search for details as the task needs them.\n\n')
@@ -26,39 +26,72 @@ def ok(body):
     return bool(body) and '## A' in body
 
 
-def pick(live, budget):
-    """喂给模型的记忆也要有上限,否则记忆一多,快照必然超长、压缩轮数也压不回来。
-
-    取舍是固定的:**「要求」和「线头·承诺」一条不删**(它们有指令效力、而且线头不按时间退出),
-    其余按从新到旧填到预算为止。被挤掉的靠 `cm recall` 检索,不靠把快照写长。
+def pick(live, budget, short_cut=None):
+    """按互不重叠的四桶比例分配输入字数,防止单一类别增长后把其余类别挤成 0 条。
+    顺序:thread(15%) -> request(45%) -> 近期 short(15%) -> long 与其余(25% + 前面余量),剩余再回填。
     """
-    keep = [m for m in live if m['nature'] == 'request' or m['kind'] == 'thread']
-    rest = sorted([m for m in live if m not in keep], key=lambda m: m['date'], reverse=True)
-    used = sum(len(m.get('content') or '') for m in keep)
-    for m in rest:
-        n = len(m.get('content') or '')
-        if used + n > budget:
-            continue
-        keep.append(m)
-        used += n
+    sc = short_cut or time.strftime('%Y-%m-%d', time.localtime(time.time() - 30 * 86400))
+    b_thread, b_req, b_short, b_long = [], [], [], []
+    for m in live:
+        if m.get('kind') == 'thread':
+            b_thread.append(m)
+        elif m.get('nature') == 'request':
+            b_req.append(m)
+        elif m.get('horizon') == 'short' and (m.get('date') or '') >= sc:
+            b_short.append(m)
+        else:
+            b_long.append(m)
+    for b in (b_thread, b_req, b_short, b_long):
+        b.sort(key=lambda m: m.get('date') or '', reverse=True)
+
+    keep, picked_ids, used = [], set(), 0
+    caps = ((b_thread, 0.15), (b_req, 0.45), (b_short, 0.15), (b_long, 0.25))
+    carry = 0
+    for bucket, ratio in caps:
+        cap = int(budget * ratio) + carry
+        b_used = 0
+        for m in bucket:
+            n = len(m.get('content') or '')
+            if b_used + n > cap or used + n > budget:
+                continue
+            keep.append(m)
+            picked_ids.add(m.get('id'))
+            b_used += n
+            used += n
+        carry = max(0, cap - b_used)
+
+    # 若仍有剩余预算,按 request -> short -> long -> thread 顺序回填
+    if used < budget:
+        for bucket in (b_req, b_short, b_long, b_thread):
+            for m in bucket:
+                if m.get('id') in picked_ids:
+                    continue
+                n = len(m.get('content') or '')
+                if used + n > budget:
+                    continue
+                keep.append(m)
+                picked_ids.add(m.get('id'))
+                used += n
+
     keep.sort(key=lambda m: (m['horizon'] != 'long', m['date']))
     return keep, len(live) - len(keep)
 
 
-def build(cfg, rows, sessions_done, batch):
+def build(cfg, rows, sessions_done, batch, persist=True):
     lang = cfg.get('language') or 'zh'
     hard = int(cfg.get('snapshot_max_chars') or 3200)
-    live = store.shared(rows)
-    # 线头只在有人明确说"办完了"时才关,实际上很多事办完了没人回来说。超过 thread_stale_days
-    # 天没再被提起的线头不进快照(检索仍然找得到),免得每个新会话开局都读到过时的待办。
+    today = store.local_today(cfg)
+    all_shared = [m for m in store.shared(rows) if not store.expired(m, today)]
+    n_total = len(all_shared)
     stale_days = int(cfg.get('thread_stale_days') or 21)
     cut = time.strftime('%Y-%m-%d', time.localtime(time.time() - stale_days * 86400))
-    stale = [m for m in live if m['kind'] == 'thread' and m['date'] < cut]
-    live = [m for m in live if not (m['kind'] == 'thread' and m['date'] < cut)]
+    stale = [m for m in all_shared if m['kind'] == 'thread' and m['date'] < cut]
+    live = [m for m in all_shared if not (m['kind'] == 'thread' and m['date'] < cut)]
     live.sort(key=lambda m: (m['horizon'] != 'long', m['date']))
-    live, dropped = pick(live, int(cfg.get('snapshot_input_budget') or hard * 8))
+    short_cut = time.strftime('%Y-%m-%d', time.localtime(time.time() - 30 * 86400))
+    live, dropped = pick(live, int(cfg.get('snapshot_input_budget') or 51200), short_cut=short_cut)
     if dropped:
-        print(f'  · 喂给快照的记忆裁到 {len(live)} 条(略过 {dropped} 条较旧的,检索仍然找得到)', flush=True)
+        print(f'  · 喂给快照的记忆纳入 {len(live)} / {n_total} 条(按分桶预算略过 {dropped} 条,检索仍然找得到)', flush=True)
     mems = '\n'.join(
         f"- [{L.word(m['nature'], lang)}/{L.word(m['kind'], lang)}/{L.word(m['horizon'], lang)}/"
         f"{L.word(m['status'], lang)}, {m['date']}, "
@@ -97,14 +130,15 @@ def build(cfg, rows, sessions_done, batch):
     head_t = HOST_LINE_EN if lang == 'en' else HOST_LINE_ZH
     title = f"# {cfg.get('user_name')} · snapshot\n\n" if lang == 'en' else f"# {cfg.get('user_name')} · 当前快照\n\n"
     head = title + head_t.format(t=time.strftime('%Y-%m-%d %H:%M'), host=store.HOST,
-                                 n=len(live), done=sessions_done)
+                                 n_total=n_total, n=len(live), done=sessions_done)
     if stale:
         head += (f'(Another {len(stale)} open threads not mentioned for over {stale_days} days are left out; '
                  f'`cm recall` still finds them.)\n\n' if lang == 'en' else
                  f'(另有 {len(stale)} 条超过 {stale_days} 天没再提起的线头未列出,可能已办完或搁置,'
                  f'`cm recall` 仍可查。)\n\n')
     text = head + body.strip() + baseline(cfg, lang)
-    llm.atomic_write(prev_path, text)        # 本机留一份,给下一次做措辞参照,也是取不到共享层时的兜底
+    if persist:
+        llm.atomic_write(prev_path, text)    # 本机留一份,给下一次做措辞参照,也是取不到共享层时的兜底
     return text
 
 

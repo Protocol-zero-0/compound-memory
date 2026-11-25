@@ -4,7 +4,7 @@
 原则:**原始语料是资产,记忆是可重算的缓存。** 所以这里存的每条都带出处(哪台机器、
 哪个 harness、哪个 session)和批次号,任何时候都能丢掉重跑。
 """
-import json, os, random, re, socket, string, time
+import datetime, json, os, random, re, socket, string, time
 
 from . import config, llm
 
@@ -62,6 +62,22 @@ def load_state():
 
 def save_state(state):
     llm.atomic_write(STATE, json.dumps(state, ensure_ascii=False, indent=1))
+
+
+_ISO_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+
+def local_today(cfg=None):
+    c = cfg or config.load()
+    tz = int(((c.get('sinks') or {}).get('feishu') or {}).get('log_tz_hours', 8))
+    return (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=tz)).strftime('%Y-%m-%d')
+
+
+def expired(m, today=None):
+    exp = (m.get('expires') or '').strip()
+    if not _ISO_DATE_RE.match(exp):
+        return False
+    return exp < (today or local_today())
 
 
 def live(rows):
@@ -136,7 +152,7 @@ def related(rows, query, sid=None, k=25, domain='work'):
     return [m for _, m in scored[:k]]
 
 
-def search(rows, queries, k=8, include_stale=False):
+def search(rows, queries, k=8, include_stale=False, today=None):
     """给 `cm recall` 用。queries 是字符串,或者 [(说法, 权重)] —— 后者给查询扩展留的口子。"""
     if isinstance(queries, str):
         queries = [(queries, 1.0)]
@@ -144,10 +160,16 @@ def search(rows, queries, k=8, include_stale=False):
     wmap, total = _wmap([(q, w) for q, w in queries if norm(q).strip()])
     if not (pool and wmap):
         return []
+    td = today or local_today()
+    dates = sorted({(m.get('date') or '')[:10] for m in pool if m.get('date')})
+    drank = {d: i / max(1, len(dates) - 1) for i, d in enumerate(dates)} if dates else {}
     out = []
     for m in pool:
         s = _score(tokens(haystack(m)), wmap, total)
         if s > 0:
+            if m.get('status') in ('revised', 'closed') or expired(m, td):
+                s *= 0.45
+            s += 0.02 * drank.get((m.get('date') or '')[:10], 0.0)
             out.append((s, m))
     out.sort(key=lambda x: -x[0])
     return [m for _, m in out[:k]]

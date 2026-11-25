@@ -8,7 +8,7 @@ Below are all the live shared memories (with nature/kind/horizon/date). Turn the
   ## C Patterns & contradictions  (include «{w_uncertain}» items, stated as uncertain)
   ## D Metric  (one line only: «{w_correction}» memories in this batch = {n_corr})
 - Keep the date on every line. Never write an inference as a fact, or an idea as a request, or invent anything not in the memories.
-- Omit completed tasks and historical deadlines. A one-time authorization covers only its original task. Use the latest evidenced role for each person. Drop claims supported only by the previous snapshot.
+- Omit completed tasks and historical deadlines. A one-time authorization covers only its original task. Use the latest evidenced role for each person. Preserve standing long-term requests already listed under Section A ("What he has explicitly asked for") in the previous snapshot unless revised or contradicted by the memories below; in all other sections, drop claims supported only by the previous snapshot.
 - Previous snapshot (for wording stability only — it is not evidence; where memories contradict it, the memories win):
 {prev}
 

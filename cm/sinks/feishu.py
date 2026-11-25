@@ -256,6 +256,7 @@ class FeishuSink(Sink):
                     'status': L.canon(row.get('状态'), L.STATUS, 'active'),
                     'content': row.get('内容'), 'scope': row.get('适用范围'),
                     'expires': row.get('有效期'), 'revises': row.get('修订自'),
+                    'share': True,
                     'source_label': row.get('出处')})
             if not d.get('has_more'):
                 break

@@ -45,22 +45,37 @@ def cutoff(days):
             - datetime.timedelta(days=days)).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
+def _is_idle_tail(ts_last, idle_hours=24):
+    try:
+        s = ts_last.rstrip('Z')
+        if '+' in s[10:]:
+            s = s[:19]
+        dt = datetime.datetime.fromisoformat(s[:19]).replace(tzinfo=datetime.timezone.utc)
+        return (datetime.datetime.now(datetime.timezone.utc) - dt).total_seconds() >= idle_hours * 3600
+    except Exception:
+        return False
+
+
 def candidates(cfg, state, days, limit=None, only=None):
-    """挑出"有新对话、而且新得够多值得再调一次模型"的 session。"""
+    """挑出"有新对话、而且新得够多值得再调一次模型(或已静默满 24 小时待收尾)"的 session。"""
     since = cutoff(days)
+    idle_h = int(cfg.get('tail_idle_hours') or 24)
     recs = sources.scan_all(cfg, since)
     todo = []
     for r in recs:
         if only and r['source'] not in only:
             continue
-        if not r.get('ts_last') or r['ts_last'] < since or r.get('n_user_turns', 0) < 2:
+        now_turns = r.get('n_user_turns', 0)
+        if not r.get('ts_last') or r['ts_last'] < since or now_turns < 2:
             continue
         key = f"{r['source']}:{r['sid']}"
         st = state.get(key)
         if st and st.get('ts_last') == r['ts_last']:
             continue                                  # 最后一条消息没变 = 没有新对话
-        if st and not llm.needs_resummary(st.get('turns') or 0, r.get('n_user_turns', 0)):
-            continue                                  # 有新对话但不到 max(3 轮, 25%),攒着下次一起理解
+        base_turns = (st.get('turns') or 0) if st else 0
+        if st and not llm.needs_resummary(base_turns, now_turns):
+            if not (now_turns > base_turns and _is_idle_tail(r['ts_last'], idle_h)):
+                continue                              # 仍在活跃且增量不足门槛,攒着下次一起理解
         todo.append(r)
     todo.sort(key=lambda r: r['ts_last'])
     return todo[:limit] if limit else todo
@@ -164,8 +179,19 @@ def import_sources(cfg, rows):
     return n
 
 
-def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=False, days_backfill=0, only=None):
+def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=False,
+        days_backfill=0, only=None, if_pending=False, dry_snapshot=''):
     global BATCH
+    if dry_snapshot:
+        BATCH = time.strftime('%Y%m%d-%H%M')
+        rows = store.load()
+        text = build_snapshot(cfg, rows, 0, BATCH, persist=False)
+        if dry_snapshot == '-':
+            print(text)
+        else:
+            llm.atomic_write(dry_snapshot, text)
+            print(f'dry-snapshot written ({len(text)} chars) -> {dry_snapshot}')
+        return 0
     if not llm.try_lock('distill'):
         log('另一个提炼正在跑,退出'); return 1
     BATCH = time.strftime('%Y%m%d-%H%M')
@@ -178,7 +204,7 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
         store.save(rows)
         log(f'从 import_sources 并入 {n_imp} 条新记忆')
     by_id = {m['id']: m for m in rows}
-    done, errors, hit_limit = 0, [], False
+    done, errors, hit_limit, hit_unavailable = 0, [], False, False
 
     if not snapshot_only:
         todo = candidates(cfg, state, days, limit or None, only)
@@ -198,6 +224,7 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
             except llm.ModelUnavailable as ex:
                 log(f'  !! 模型调不起来,整轮停止(水位线未动):{ex}')
                 errors.append(f'模型调不起来:{str(ex)[:160]}')
+                hit_unavailable = True
                 break
             except Exception as ex:
                 log(f"  ! {r['source']}:{sources.short(r['sid'])} 提炼失败 {type(ex).__name__}: {str(ex)[:160]}")
@@ -249,8 +276,12 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
     if not no_snapshot and (done or snapshot_only):
         try:
             text = build_snapshot(cfg, rows, done, BATCH)
-            where = sink.publish_snapshot(text)
-            log(f'快照已发布 {len(text)} 字 → {where}')
+            writer_host = (cfg.get('snapshot_writer_host') or '').strip()
+            if writer_host and writer_host != HOST:
+                log(f'快照已写本机 {len(text)} 字(snapshot_writer_host={writer_host},跳过覆盖远端)')
+            else:
+                where = sink.publish_snapshot(text)
+                log(f'快照已发布 {len(text)} 字 → {where}')
         except llm.UsageLimit as ex:
             log(f'  !! 生成快照时额度到顶,保留上一版:{str(ex)[:120]}')
             hit_limit = True
@@ -258,18 +289,18 @@ def run(cfg, days=None, limit=None, dry=False, no_snapshot=False, snapshot_only=
             log(f'  ! 快照失败 {type(ex).__name__}: {str(ex)[:200]}')
             errors.append('snapshot')
 
-    if errors and not done:
+    if errors and not done and not if_pending:
         notify(cfg, '复利记忆:今晚提炼一条都没产出', f'{len(errors)} 处失败。原因:{errors[0]}\n详见 {LOG}')
     left = candidates(cfg, state, days)
     log(f'覆盖核对:窗口内仍未处理到最新的 session {len(left)} 个')
     if not (dry or snapshot_only):
-        # 撞了额度就留个记号,补跑的 cron(`--if-pending`)看到记号才动,跑通了就删
-        if hit_limit:
+        # 撞了额度或凭证失效就留个记号,补跑的 cron(`--if-pending`)看到记号才动,跑通了就删
+        if hit_limit or hit_unavailable:
             open(PENDING, 'w').write(BATCH + '\n')
-        elif os.path.exists(PENDING):
+        elif not errors and os.path.exists(PENDING):
             os.remove(PENDING)
         from .followups import run as run_followups
-        run_followups(state, ok=(done > 0 and not errors and not hit_limit))
+        run_followups(state, ok=(done > 0 and not errors and not hit_limit and not hit_unavailable))
         store.save_state(state)
     return 0
 
@@ -281,6 +312,8 @@ def main(argv=None):
     ap.add_argument('--dry', action='store_true', help='只列要处理的 session,不调模型')
     ap.add_argument('--no-snapshot', action='store_true')
     ap.add_argument('--snapshot-only', action='store_true', help='不提炼,只用现有记忆重写快照')
+    ap.add_argument('--dry-snapshot', default='', metavar='PATH',
+                    help='只生成快照写入 PATH(或 - 打到标准输出),不改本地快照也不发共享层')
     ap.add_argument('--logs-backfill', type=int, default=0, help='飞书会话记录/每日日志往回补几天')
     ap.add_argument('--source', action='append', help='只处理这类来源(claude/codex/dsh/agy/meeting),可重复')
     ap.add_argument('--if-pending', action='store_true',
@@ -289,7 +322,8 @@ def main(argv=None):
     if a.if_pending and not os.path.exists(PENDING):
         return 0
     cfg = config.load()
-    return run(cfg, a.days, a.limit, a.dry, a.no_snapshot, a.snapshot_only, a.logs_backfill, a.source)
+    return run(cfg, a.days, a.limit, a.dry, a.no_snapshot, a.snapshot_only,
+               a.logs_backfill, a.source, a.if_pending, a.dry_snapshot)
 
 
 if __name__ == '__main__':
